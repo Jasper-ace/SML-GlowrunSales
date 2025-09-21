@@ -46,14 +46,19 @@
 </head>
 <body>
   <div class="login-card">
-    <h4 class="mb-4">Welcome</h4>
+    <h4 class="mb-3">Welcome</h4>
+
+    <!-- Access notice -->
+    <div class="alert alert-warning d-flex align-items-center justify-content-center rounded-3 shadow-sm py-2 mb-4" role="alert">
+      <span class="fw-semibold">⚠️ Only <span class="text-danger">SML Officers</span> have access to this website.</span>
+    </div>
+
     <button class="google-btn w-100" id="googleLogin">
       <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google Logo">
       Login with Google
     </button>
   </div>
 
-  <!-- Firebase SDKs -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
     import { 
@@ -64,7 +69,6 @@
     } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
     import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
 
-    // ✅ Firebase config
     const firebaseConfig = {
       apiKey: "AIzaSyAFSdfPdf9URpjH-SgfX5xccgTIpXWIjj4",
       authDomain: "glowrun-sales.firebaseapp.com",
@@ -75,7 +79,6 @@
       measurementId: "G-YER90NZLVD"
     };
 
-    // Initialize Firebase
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const provider = new GoogleAuthProvider();
@@ -88,7 +91,6 @@
       }
     });
 
-    // Google Login
     document.getElementById("googleLogin").addEventListener("click", async () => {
       try {
         const result = await signInWithPopup(auth, provider);
@@ -102,7 +104,7 @@
           lastLogin: new Date().toISOString()
         }, { merge: true });
 
-        window.location.href = "dashboard.html"; // redirect
+        window.location.href = "dashboard.html"; 
       } catch (error) {
         console.error(error.message);
         alert("Login failed: " + error.message);
