@@ -40,7 +40,11 @@ const allowedEmails = [
   "princecyrusjhoriel.tadina@lorma.edu",
   "fredrichyvan.jacla@lorma.edu",
   "jasperace.lapitan@lorma.edu",
-  "jeanneariel.garcia@lorma.edu"
+  "jeanneariel.garcia@lorma.edu",
+  "almiravictoria.rendon@lorma.edu",
+  "princessangel.gacayan@lorma.edu",
+  "finariki.soriano@lorma.edu",
+  "myca.oribio@lorma.edu"
 ];
 
 // --------------------- Helpers ---------------------
@@ -98,6 +102,7 @@ const userNameEl = document.getElementById("userName");
 const userPhotoEl = document.getElementById("userPhoto");
 
 let entries = [];
+let currentUser = null;
 let editingId = null;
 let deleteId = null;
 
@@ -114,8 +119,12 @@ document.addEventListener("DOMContentLoaded", () => {
         setTimeout(() => signOut(auth), 900);
         return;
       }
+
+      currentUser = user; // ✅ store user globally
+
       if (userNameEl) userNameEl.textContent = user.displayName || user.email;
       if (userPhotoEl && user.photoURL) userPhotoEl.src = user.photoURL;
+
       loadEntries();
     } else {
       window.location.href = "index.html";
@@ -184,7 +193,6 @@ async function handleAddEntry(e) {
     showToast("Quantity must be a valid non-negative number", "warning");
     return;
   }
-
   const entry = {
     schoolId: schoolIdVal,
     name,
@@ -193,8 +201,10 @@ async function handleAddEntry(e) {
     department,
     quantity,
     unitPrice: UNIT_PRICE,
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    soldBy: currentUser?.displayName || currentUser?.email || "Unknown" // ✅ Add this
   };
+
 
   try {
     await addDoc(collection(db, "entries"), entry);
@@ -341,26 +351,24 @@ function renderTable() {
     grandTotal += totalPrice;
 
     const createdAt = entry.createdAt ? new Date(entry.createdAt).toLocaleString() : "—";
-    const updatedAt = entry.updatedAt ? new Date(entry.updatedAt).toLocaleString() : null;
-    const timestampDisplay = updatedAt ? `${updatedAt}` : createdAt;
 
     const row = document.createElement("tr");
     row.innerHTML = `
-      <td>${safeStr(entry.schoolId)}</td>
-      <td>${safeStr(entry.name)}</td>
-      <td>${safeStr(entry.lastname)}</td>
-      <td>${safeStr(entry.yrlvl)}</td>
-      <td>${safeStr(entry.department)}</td>
-      <td>${quantity}</td>
-      <td>${formatCurrency(unitPrice)}</td>
-      <td>${formatCurrency(totalPrice)}</td>
-      <td>${timestampDisplay}</td>
-      <td class="text-center">
-        <button class="btn btn-sm btn-warning me-1" data-id="${entry.id}" data-action="edit">✏️</button>
-        <button class="btn btn-sm btn-danger" data-id="${entry.id}" data-action="delete">🗑️</button>
-      </td>
-    `;
-
+  <td>${safeStr(entry.schoolId)}</td>
+  <td>${safeStr(entry.name)}</td>
+  <td>${safeStr(entry.lastname)}</td>
+  <td>${safeStr(entry.yrlvl)}</td>
+  <td>${safeStr(entry.department)}</td>
+  <td>${quantity}</td>
+  <td>${formatCurrency(unitPrice)}</td>
+  <td>${formatCurrency(totalPrice)}</td>
+  <td>${safeStr(entry.soldBy || "—")}</td>
+  <td>${createdAt}</td>
+  <td class="text-center">
+    <button class="btn btn-sm btn-warning me-1" data-id="${entry.id}" data-action="edit">✏️</button>
+    <button class="btn btn-sm btn-danger" data-id="${entry.id}" data-action="delete">🗑️</button>
+  </td>
+`;
     studentTable.appendChild(row);
   });
 
@@ -385,47 +393,3 @@ document.getElementById("filterDate")?.addEventListener("change", renderTable);
 
 // Initial render
 renderTable();
-
-
-// Filter by Day
-document.getElementById("filterDate").addEventListener("change", function () {
-  const selectedDate = this.value; // YYYY-MM-DD
-  const tableBody = document.querySelector("#studentTable tbody");
-  const rows = tableBody.querySelectorAll("tr");
-
-  let hasData = false;
-
-  rows.forEach(row => {
-    const timestamp = row.cells[8].textContent; // Timestamp column
-    const dateObj = new Date(timestamp);
-
-    // format YYYY-MM-DD
-    const rowDate = dateObj.getFullYear() + "-" +
-      String(dateObj.getMonth() + 1).padStart(2, '0') + "-" +
-      String(dateObj.getDate()).padStart(2, '0');
-
-    if (selectedDate === "" || rowDate === selectedDate) {
-      row.style.display = "";
-      hasData = true;
-    } else {
-      row.style.display = "none";
-    }
-  });
-
-  // Remove old "No Data" row if exists
-  const noDataRow = document.getElementById("noDataRow");
-  if (noDataRow) noDataRow.remove();
-
-  // Add "No Data" row if nothing matches
-  if (!hasData && selectedDate !== "") {
-    const newRow = document.createElement("tr");
-    newRow.id = "noDataRow";
-    newRow.innerHTML = `<td colspan="10" class="text-center text-muted fw-bold">📅 No data for this day</td>`;
-    tableBody.appendChild(newRow);
-  }
-});
-
-
-
-
-
