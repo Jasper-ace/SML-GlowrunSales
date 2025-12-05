@@ -367,8 +367,20 @@ function renderActivityTable() {
 
   const filterVal = document.getElementById("activityFilter")?.value || "all";
   const userVal = document.getElementById("activityUser")?.value || "";
+  const searchVal = safeStr(document.getElementById("activitySearch")?.value).toLowerCase();
 
   let filtered = [...entries];
+
+  // Filter by search (ID or Name)
+  if (searchVal) {
+    filtered = filtered.filter(e => {
+      const schoolId = safeStr(e.schoolId).toLowerCase();
+      const name = safeStr(e.name).toLowerCase();
+      const lastname = safeStr(e.lastname).toLowerCase();
+      const fullName = `${name} ${lastname}`;
+      return schoolId.includes(searchVal) || fullName.includes(searchVal) || name.includes(searchVal) || lastname.includes(searchVal);
+    });
+  }
 
   // Filter by time
   if (filterVal !== "all") {
@@ -579,6 +591,8 @@ function renderDeletedTable() {
   const tbody = document.getElementById("deletedTableBody");
   if (!tbody) return;
 
+  const searchVal = safeStr(document.getElementById("deletedSearch")?.value).toLowerCase();
+
   tbody.innerHTML = "";
 
   if (deletedEntries.length === 0) {
@@ -594,11 +608,34 @@ function renderDeletedTable() {
   }
 
   // Sort by deletion date (newest first)
-  const sorted = [...deletedEntries].sort((a, b) => {
+  let sorted = [...deletedEntries].sort((a, b) => {
     const dateA = a.deletedAt ? new Date(a.deletedAt) : new Date(0);
     const dateB = b.deletedAt ? new Date(b.deletedAt) : new Date(0);
     return dateB - dateA;
   });
+
+  // Filter by search (ID or Name)
+  if (searchVal) {
+    sorted = sorted.filter(e => {
+      const schoolId = safeStr(e.schoolId).toLowerCase();
+      const name = safeStr(e.name).toLowerCase();
+      const lastname = safeStr(e.lastname).toLowerCase();
+      const fullName = `${name} ${lastname}`;
+      return schoolId.includes(searchVal) || fullName.includes(searchVal) || name.includes(searchVal) || lastname.includes(searchVal);
+    });
+  }
+
+  if (sorted.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="8" class="text-center text-muted py-4">
+          <div style="font-size: 2rem; margin-bottom: 0.5rem;">🔍</div>
+          <div>No matching entries found</div>
+        </td>
+      </tr>
+    `;
+    return;
+  }
 
   sorted.forEach(e => {
     const qty = toNumberSafe(e.quantity, 0);
@@ -938,3 +975,5 @@ document.getElementById("chartToday")?.addEventListener("click", () => {
 document.getElementById("userSearch")?.addEventListener("input", renderUserTable);
 document.getElementById("activityFilter")?.addEventListener("change", renderActivityTable);
 document.getElementById("activityUser")?.addEventListener("change", renderActivityTable);
+document.getElementById("activitySearch")?.addEventListener("input", renderActivityTable);
+document.getElementById("deletedSearch")?.addEventListener("input", renderDeletedTable);

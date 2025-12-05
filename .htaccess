@@ -1,0 +1,15 @@
+# Custom 404 Error Page
+ErrorDocument 404 /404.html
+
+# Prevent directory browsing
+Options -Indexes
+
+# Enable rewrite engine
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  
+  # Redirect non-existent pages to 404
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule ^(.*)$ 404.html [L]
+</IfModule>
