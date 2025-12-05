@@ -165,6 +165,12 @@ document.addEventListener("DOMContentLoaded", () => {
   if (filterDepartment) filterDepartment.addEventListener("change", renderTable);
   if (editForm) editForm.addEventListener("submit", handleSaveEdit);
   if (confirmDeleteBtn) confirmDeleteBtn.addEventListener("click", confirmDeleteHandler);
+  
+  // Add real-time validation for School ID in add form
+  const schoolIdInput = document.getElementById("schoolId");
+  if (schoolIdInput) {
+    schoolIdInput.addEventListener("input", validateSchoolIdInput);
+  }
 });
 
 // --------------------- Firestore operations ---------------------
@@ -191,6 +197,58 @@ function loadEntries() {
     showToast("Failed to load entries: " + err.message, "danger");
   } finally {
     if (loadingSpinner) loadingSpinner.classList.add("d-none");
+  }
+}
+
+// Validate School ID input in real-time
+function validateSchoolIdInput() {
+  const schoolIdInput = document.getElementById("schoolId");
+  if (!schoolIdInput) return;
+  
+  const schoolIdVal = safeStr(schoolIdInput.value).trim().toLowerCase();
+  const isDuplicate = entries.some(en => 
+    safeStr(en.schoolId).trim().toLowerCase() === schoolIdVal
+  );
+  
+  // Get the submit button
+  const submitButton = studentForm?.querySelector('button[type="submit"]');
+  
+  if (isDuplicate && schoolIdVal !== "") {
+    schoolIdInput.style.borderColor = "#ef4444";
+    schoolIdInput.style.borderWidth = "2px";
+    schoolIdInput.style.backgroundColor = "#fee2e2";
+    
+    // Add or update warning message
+    let warningMsg = schoolIdInput.parentElement.querySelector(".duplicate-warning");
+    if (!warningMsg) {
+      warningMsg = document.createElement("small");
+      warningMsg.className = "duplicate-warning text-danger d-block mt-1";
+      warningMsg.style.fontWeight = "600";
+      schoolIdInput.parentElement.appendChild(warningMsg);
+    }
+    warningMsg.textContent = "⚠️ This ID Number already exists!";
+    
+    // Disable submit button
+    if (submitButton) {
+      submitButton.disabled = true;
+      submitButton.style.opacity = "0.5";
+      submitButton.style.cursor = "not-allowed";
+      submitButton.style.background = "#9ca3af";
+    }
+  } else {
+    schoolIdInput.style.borderColor = "";
+    schoolIdInput.style.borderWidth = "";
+    schoolIdInput.style.backgroundColor = "";
+    const warningMsg = schoolIdInput.parentElement.querySelector(".duplicate-warning");
+    if (warningMsg) warningMsg.remove();
+    
+    // Enable submit button
+    if (submitButton) {
+      submitButton.disabled = false;
+      submitButton.style.opacity = "";
+      submitButton.style.cursor = "";
+      submitButton.style.background = "";
+    }
   }
 }
 
@@ -240,6 +298,15 @@ async function handleAddEntry(e) {
     await addDoc(collection(db, "entries"), entry);
     await loadEntries();
     studentForm.reset();
+    // Clear the red border after successful submission
+    const schoolIdInput = document.getElementById("schoolId");
+    if (schoolIdInput) {
+      schoolIdInput.style.borderColor = "";
+      schoolIdInput.style.borderWidth = "";
+      schoolIdInput.style.backgroundColor = "";
+      const warningMsg = schoolIdInput.parentElement.querySelector(".duplicate-warning");
+      if (warningMsg) warningMsg.remove();
+    }
     showToast("Entry added", "success");
   } catch (err) {
     console.error("Add entry failed:", err);
@@ -434,6 +501,13 @@ function renderTable() {
     }
 
     return matchesSearch && matchesDept && matchesDate;
+  });
+
+  // ✅ Sort by time added (newest first)
+  filteredEntries.sort((a, b) => {
+    const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
+    const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
+    return dateB - dateA; // Descending order (newest first)
   });
 
   if (filteredEntries.length === 0) {

@@ -154,35 +154,37 @@
             </div>
 
 
-            <!-- Scrollable Table -->
-            <div class="table-responsive" style="max-height: 450px; overflow-y: auto;">
-              <table class="table table-striped table-hover table-bordered align-middle" id="studentTable">
-                <thead class="text-center">
-                  <tr>
-                    <th>ID Number</th>
-                    <th>Name</th>
-                    <th>Lastname</th>
-                    <th>Yr/lvl</th>
-                    <th>Department</th>
-                    <th>Quantity</th>
-                    <th>Unit Price</th>
-                    <th>Total Price</th>
-                    <th>Sold By</th>
-                    <th>Timestamp</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <!-- Rows will be inserted dynamically -->
-                </tbody>
-                <tfoot>
-                  <tr>
-                    <td colspan="7" class="text-end fw-bold">Grand Total:</td>
-                    <td id="grandTotal" class="fw-bold">₱0.00</td>
-                    <td colspan="3"></td>
-                  </tr>
-                </tfoot>
-              </table>
+            <!-- Scrollable Table with Fixed Footer -->
+            <div style="border: 1px solid #dee2e6; border-radius: 8px; overflow: hidden;">
+              <!-- Scrollable Table Body -->
+              <div style="max-height: 450px; overflow-y: auto; overflow-x: auto;">
+                <table class="table table-striped table-hover table-bordered align-middle mb-0" id="studentTable">
+                  <thead class="text-center" style="position: sticky; top: 0; z-index: 10;">
+                    <tr>
+                      <th>ID Number</th>
+                      <th>Name</th>
+                      <th>Lastname</th>
+                      <th>Yr/lvl</th>
+                      <th>Department</th>
+                      <th>Quantity</th>
+                      <th>Unit Price</th>
+                      <th>Total Price</th>
+                      <th>Sold By</th>
+                      <th>Timestamp</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <!-- Rows will be inserted dynamically -->
+                  </tbody>
+                </table>
+              </div>
+              
+              <!-- Fixed Grand Total Footer -->
+              <div style="border-top: 3px solid var(--primary-purple); background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%); padding: 1rem; text-align: center;">
+                <span class="fw-bold" style="font-size: 1.1rem;">Grand Total: </span>
+                <span id="grandTotal" class="fw-bold" style="color: var(--primary-purple); font-size: 1.3rem;">₱0.00</span>
+              </div>
             </div>
 
             <!-- Edit Modal -->
@@ -190,8 +192,8 @@
               <div class="modal-dialog">
                 <div class="modal-content rounded-3 shadow">
                   <form id="editForm">
-                    <div class="modal-header">
-                      <h5 class="modal-title">
+                    <div class="modal-header" style="background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%);">
+                      <h5 class="modal-title text-white">
                         <span style="font-size: 1.1rem;">✏️</span> Edit Entry
                       </h5>
                       <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
@@ -278,7 +280,7 @@
             <div class="modal fade" id="duplicateModal" tabindex="-1">
               <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content rounded-3 shadow">
-                  <div class="modal-header" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);"></div>
+                  <div class="modal-header" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
                     <h5 class="modal-title">
                       <span style="font-size: 1.1rem;">⚠️</span> Duplicate Entry
                     </h5>
