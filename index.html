@@ -1,66 +1,423 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Login</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>SML Officers Login</title>
+  <link rel="icon" type="image/x-icon" href="favicon.ico?v=3">
+  <link rel="icon" type="image/png" sizes="64x64" href="assets/green.png?v=3">
 
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/green.png">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
     body {
       display: flex;
       align-items: center;
       justify-content: center;
-      height: 100vh;
-      background: #f8f9fa;
+      min-height: 100vh;
+      background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4c1d95 100%);
+      font-family: 'Inter', 'Montserrat', 'Segoe UI', sans-serif;
+      position: relative;
+      overflow: hidden;
     }
-    .login-card {
-      max-width: 400px;
+
+    /* Video Background */
+    .video-background {
+      position: fixed;
+      top: 0;
+      left: 0;
       width: 100%;
-      padding: 2rem;
-      text-align: center;
-      border-radius: 15px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-      background: #fff;
+      height: 100%;
+      z-index: 0;
+      overflow: hidden;
     }
+
+    .video-background video {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      min-width: 100%;
+      min-height: 100%;
+      width: auto;
+      height: auto;
+      transform: translate(-50%, -50%);
+      object-fit: cover;
+    }
+
+    .video-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, rgba(30, 27, 75, 0.85) 0%, rgba(76, 29, 149, 0.85) 100%);
+      z-index: 1;
+    }
+
+    /* Login Card - Mirror/Glass Style */
+    .login-card {
+      max-width: 450px;
+      width: 100%;
+      padding: 3rem 2.5rem;
+      text-align: center;
+      border-radius: 30px;
+      box-shadow: 
+        0 8px 32px 0 rgba(124, 58, 237, 0.37),
+        inset 0 1px 0 0 rgba(255, 255, 255, 0.5),
+        inset 0 -1px 0 0 rgba(255, 255, 255, 0.1);
+      background: linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0.25) 0%,
+        rgba(255, 255, 255, 0.15) 100%
+      );
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      animation: fadeIn 0.8s ease-in-out;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      position: relative;
+      z-index: 10;
+      overflow: hidden;
+    }
+
+    /* Glass reflection effect */
+    .login-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.3),
+        transparent
+      );
+      transition: left 0.5s;
+    }
+
+    .login-card:hover::before {
+      left: 100%;
+    }
+
+    /* Mirror shine effect */
+    .login-card::after {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(
+        circle,
+        rgba(255, 255, 255, 0.1) 0%,
+        transparent 70%
+      );
+      animation: shimmer 3s infinite;
+      pointer-events: none;
+    }
+
+    @keyframes shimmer {
+      0%, 100% {
+        transform: translate(0, 0) rotate(0deg);
+        opacity: 0.5;
+      }
+      50% {
+        transform: translate(10px, 10px) rotate(180deg);
+        opacity: 0.8;
+      }
+    }
+
+    .org-logo {
+      width: 80px;
+      height: 80px;
+      object-fit: contain;
+      margin-bottom: 1rem;
+      border-radius: 50%;
+      box-shadow: 
+        0 8px 24px rgba(124, 58, 237, 0.4),
+        inset 0 2px 4px rgba(255, 255, 255, 0.5);
+      background: linear-gradient(135deg, rgba(245, 243, 255, 0.9) 0%, rgba(237, 233, 254, 0.9) 100%);
+      backdrop-filter: blur(10px);
+      border: 3px solid rgba(167, 139, 250, 0.5);
+      padding: 10px;
+      animation: logoFloat 3s ease-in-out infinite;
+      position: relative;
+      z-index: 2;
+    }
+
+    @keyframes logoFloat {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+
+    .org-title {
+      font-weight: 800;
+      font-size: 1.75rem;
+      background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 0.5rem;
+      letter-spacing: 0.5px;
+      text-shadow: 0 2px 10px rgba(124, 58, 237, 0.3);
+      position: relative;
+      z-index: 2;
+    }
+
+    .org-subtitle {
+      font-size: 1.05rem;
+      color: rgba(255, 255, 255, 0.9);
+      margin-bottom: 1.5rem;
+      font-weight: 600;
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      position: relative;
+      z-index: 2;
+    }
+
+    .login-card h4 {
+      font-weight: 700;
+      font-size: 1.5rem;
+      color: rgba(31, 41, 55, 0.95);
+      margin-bottom: 0.5rem;
+      text-shadow: 0 1px 2px rgba(255, 255, 255, 0.5);
+      position: relative;
+      z-index: 2;
+    }
+
+    .login-card p {
+      position: relative;
+      z-index: 2;
+    }
+
+    .alert {
+      font-size: 0.95rem;
+      background: linear-gradient(135deg, rgba(254, 243, 199, 0.9) 0%, rgba(253, 230, 138, 0.9) 100%);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(251, 191, 36, 0.5);
+      color: #92400e;
+      box-shadow: 
+        0 4px 12px rgba(251, 191, 36, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.5);
+      border-radius: 12px;
+      position: relative;
+      z-index: 2;
+    }
+
     .google-btn {
       display: flex;
       align-items: center;
       justify-content: center;
-      background: #fff;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      padding: 10px;
-      font-weight: 500;
+      background: linear-gradient(135deg, rgba(124, 58, 237, 0.9) 0%, rgba(167, 139, 250, 0.9) 100%);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 14px;
+      padding: 16px 0;
+      font-weight: 700;
       cursor: pointer;
-      transition: all 0.2s;
+      transition: all 0.3s ease;
+      font-size: 1.1rem;
+      box-shadow: 
+        0 8px 24px rgba(124, 58, 237, 0.5),
+        inset 0 1px 0 rgba(255, 255, 255, 0.3),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.1);
+      margin-top: 1rem;
+      color: white;
+      position: relative;
+      overflow: hidden;
+      z-index: 2;
     }
+
+    .google-btn::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+      transition: left 0.5s;
+    }
+
+    .google-btn:hover::before {
+      left: 100%;
+    }
+
     .google-btn img {
-      width: 20px;
-      margin-right: 10px;
+      width: 24px;
+      margin-right: 12px;
+      filter: brightness(0) invert(1);
     }
+
     .google-btn:hover {
-      background: #f1f1f1;
+      background: linear-gradient(135deg, #6d28d9 0%, #8b5cf6 100%);
+      transform: translateY(-3px);
+      box-shadow: 0 12px 32px rgba(124, 58, 237, 0.5);
+    }
+
+    footer {
+      margin-top: 2rem;
+      font-size: 0.9rem;
+      color: rgba(255, 255, 255, 0.7);
+      letter-spacing: 0.3px;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+      position: relative;
+      z-index: 2;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(30px) scale(0.95);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    /* Mobile Responsive Styles */
+    @media (max-width: 768px) {
+      .login-card {
+        max-width: 90%;
+        padding: 2rem 1.5rem;
+        margin: 1rem;
+      }
+
+      .org-logo {
+        width: 60px;
+        height: 60px;
+      }
+
+      .org-title {
+        font-size: 1.4rem;
+      }
+
+      .org-subtitle {
+        font-size: 0.95rem;
+      }
+
+      .login-card h4 {
+        font-size: 1.25rem;
+      }
+
+      .login-card p {
+        font-size: 0.9rem;
+      }
+
+      .alert {
+        font-size: 0.85rem;
+        padding: 0.5rem;
+      }
+
+      .google-btn {
+        padding: 14px 0;
+        font-size: 1rem;
+      }
+
+      .google-btn img {
+        width: 20px;
+      }
+
+      footer {
+        font-size: 0.8rem;
+        margin-top: 1.5rem;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .login-card {
+        max-width: 95%;
+        padding: 1.5rem 1rem;
+      }
+
+      .org-logo {
+        width: 50px;
+        height: 50px;
+      }
+
+      .org-title {
+        font-size: 1.2rem;
+      }
+
+      .org-subtitle {
+        font-size: 0.85rem;
+        margin-bottom: 1rem;
+      }
+
+      .login-card h4 {
+        font-size: 1.1rem;
+      }
+
+      .login-card p {
+        font-size: 0.85rem;
+      }
+
+      .alert {
+        font-size: 0.8rem;
+      }
+
+      .google-btn {
+        padding: 12px 0;
+        font-size: 0.95rem;
+      }
+
+      footer p {
+        font-size: 0.75rem;
+      }
     }
   </style>
 </head>
+
 <body>
+  <!-- Video Background -->
+  <div class="video-background">
+    <video autoplay muted loop playsinline>
+      <source src="assets/videobackground.mp4" type="video/mp4">
+    </video>
+    <div class="video-overlay"></div>
+  </div>
+
   <div class="login-card">
-    <h4 class="mb-4">Welcome</h4>
+    <img src="assets/green.png" alt="SML Logo" class="org-logo" />
+    <div class="org-title">SML Organization</div>
+    <div class="org-subtitle">Officers Portal Login</div>
+    <h4 class="mb-2">Welcome Back 👋</h4>
+    <p class="text-muted mb-3">Sign in to access the <strong>SML Officers</strong> dashboard</p>
+    <!-- Access notice -->
+    <div class="alert alert-warning d-flex align-items-center justify-content-center rounded-3 shadow-sm py-2 mb-4" role="alert">
+      <span class="fw-semibold">⚠️ Only <span class="text-danger">SML Officers</span> have access.</span>
+    </div>
+    <!-- Google Login Button -->
     <button class="google-btn w-100" id="googleLogin">
       <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google Logo">
-      Login with Google
+      Continue with Google
     </button>
+    <footer>
+      <p>© 2025 - 2026 SML Organization. All rights reserved.</p>
+    </footer>
   </div>
 
   <!-- Firebase SDKs -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
-    import { 
-      getAuth, 
-      GoogleAuthProvider, 
-      signInWithPopup, 
-      onAuthStateChanged 
+    import {
+      getAuth,
+      GoogleAuthProvider,
+      signInWithPopup,
+      onAuthStateChanged
     } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
     import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
 
@@ -81,10 +438,30 @@
     const provider = new GoogleAuthProvider();
     const db = getFirestore(app);
 
+    // List of allowed emails (should match your script.js)
+    const allowedEmails = [
+      "azroekiel.julaton@lorma.edu",
+      "francinemyra.altis@lorma.edu",
+      "voke.oghenekaro@lorma.edu",
+      "kier-voncarlo.garcia@lorma.edu",
+      "princecyrusjhoriel.tadina@lorma.edu",
+      "fredrichyvan.jacla@lorma.edu",
+      "jasperace.lapitan@lorma.edu",
+      "jeanneariel.garcia@lorma.edu",
+      "almiravictoria.rendon@lorma.edu",
+      "princessangel.gacayan@lorma.edu",
+      "finariki.soriano@lorma.edu",
+      "myca.oribio@lorma.edu"
+    ];
+
     // 🚨 Redirect if already logged in
     onAuthStateChanged(auth, (user) => {
       if (user) {
-        window.location.href = "dashboard.html";
+        if (!allowedEmails.includes(user.email)) {
+          window.location.href = "unautorized.html";
+        } else {
+          window.location.href = "dashboard.html";
+        }
       }
     });
 
@@ -102,12 +479,16 @@
           lastLogin: new Date().toISOString()
         }, { merge: true });
 
-        window.location.href = "dashboard.html"; // redirect
+        if (!allowedEmails.includes(user.email)) {
+          window.location.href = "unautorized.html";
+        } else {
+          window.location.href = "dashboard.html";
+        }
       } catch (error) {
-        console.error(error.message);
-        alert("Login failed: " + error.message);
+        console.error("Login failed:", error.message);
       }
     });
   </script>
 </body>
+
 </html>

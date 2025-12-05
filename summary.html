@@ -2,21 +2,284 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <title>Sales Summary</title>
+  <link rel="icon" type="image/x-icon" href="favicon.ico?v=3">
+  <link rel="icon" type="image/png" sizes="64x64" href="assets/green.png?v=3">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/green.png?v=3">
+  <link rel="icon" type="image/png" sizes="16x16" href="assets/green.png?v=3">
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/green.png">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+  <style>
+    :root {
+      --primary-purple: #7c3aed;
+      --primary-purple-dark: #6d28d9;
+      --primary-purple-light: #a78bfa;
+      --secondary-purple: #c4b5fd;
+      --accent-purple: #ddd6fe;
+      --purple-gradient: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%);
+      --success-color: #10b981;
+      --text-dark: #1f2937;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
+      min-height: 100vh;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 50%, #ddd6fe 100%);
+      opacity: 0.03;
+      z-index: -1;
+    }
+
+    .container {
+      padding: 2rem 1rem;
+    }
+
+    .card {
+      border: none;
+      border-radius: 20px;
+      box-shadow: 0 10px 40px rgba(124, 58, 237, 0.15);
+      background: white;
+      animation: fadeIn 0.6s ease;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .card-body {
+      padding: 2.5rem;
+    }
+
+    .card-title {
+      font-weight: 800;
+      font-size: 1.75rem;
+      background: var(--purple-gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 2rem;
+      border-bottom: 3px solid var(--accent-purple);
+      padding-bottom: 1rem;
+    }
+
+    .table-responsive {
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 6px rgba(124, 58, 237, 0.1);
+    }
+
+    .table {
+      margin-bottom: 0;
+      font-size: 1rem;
+    }
+
+    .table thead {
+      background: var(--purple-gradient);
+      color: white;
+    }
+
+    .table thead th {
+      font-weight: 700;
+      padding: 1.25rem 1rem;
+      border: none;
+      font-size: 1rem;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    .table tbody tr {
+      transition: all 0.2s ease;
+    }
+
+    .table tbody tr:hover {
+      background-color: var(--accent-purple);
+      transform: scale(1.005);
+    }
+
+    .table tbody td {
+      padding: 1rem;
+      vertical-align: middle;
+      font-weight: 500;
+      color: var(--text-dark);
+    }
+
+    .table-striped tbody tr:nth-of-type(odd) {
+      background-color: rgba(124, 58, 237, 0.03);
+    }
+
+    .table .table-info {
+      background: linear-gradient(135deg, #ddd6fe 0%, #c4b5fd 100%) !important;
+    }
+
+    .table .table-info td {
+      font-size: 1.1rem;
+      font-weight: 800;
+      color: var(--primary-purple-dark);
+      padding: 1.25rem 1rem;
+    }
+
+    .btn {
+      border-radius: 12px;
+      font-weight: 700;
+      padding: 0.75rem 1.75rem;
+      transition: all 0.3s ease;
+      border: none;
+      font-size: 1rem;
+      min-height: 44px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .btn-secondary {
+      background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+      color: white;
+    }
+
+    .btn-secondary:hover {
+      background: linear-gradient(135deg, #4b5563 0%, #374151 100%);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 12px rgba(107, 114, 128, 0.3);
+    }
+
+    .btn-success {
+      background: linear-gradient(135deg, var(--success-color) 0%, #059669 100%);
+      color: white;
+    }
+
+    .btn-success:hover {
+      background: linear-gradient(135deg, #059669 0%, #047857 100%);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 12px rgba(16, 185, 129, 0.3);
+    }
+
+    .d-flex.gap-2 {
+      gap: 1rem;
+    }
+
+    /* Mobile Responsive Styles */
+    @media (max-width: 768px) {
+      .container {
+        padding: 1rem !important;
+      }
+
+      .card-body {
+        padding: 1.5rem;
+      }
+
+      .card-title {
+        font-size: 1.35rem;
+        margin-bottom: 1.25rem !important;
+      }
+
+      .table {
+        font-size: 0.85rem;
+      }
+
+      .table thead th {
+        font-size: 0.85rem;
+        padding: 0.75rem 0.5rem;
+      }
+
+      .table tbody td {
+        padding: 0.75rem 0.5rem;
+      }
+
+      .table .table-info td {
+        font-size: 0.95rem;
+        padding: 1rem 0.5rem;
+      }
+
+      .btn {
+        font-size: 0.9rem;
+        padding: 0.65rem 1.25rem;
+      }
+
+      .d-flex.gap-2 {
+        flex-direction: column;
+        gap: 0.75rem !important;
+      }
+
+      .d-flex.gap-2 .btn {
+        width: 100%;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .card-body {
+        padding: 1rem;
+      }
+
+      .card-title {
+        font-size: 1.15rem;
+      }
+
+      .table {
+        font-size: 0.75rem;
+      }
+
+      .table thead th {
+        font-size: 0.75rem;
+        padding: 0.6rem 0.35rem;
+      }
+
+      .table tbody td {
+        padding: 0.6rem 0.35rem;
+      }
+
+      .table .table-info td {
+        font-size: 0.85rem;
+        padding: 0.85rem 0.35rem;
+      }
+
+      .btn {
+        font-size: 0.85rem;
+        padding: 0.6rem 1rem;
+      }
+    }
+  </style>
 </head>
 <body class="bg-light">
   <div class="container py-5">
     <div class="card shadow-lg border-0 rounded-3">
       <div class="card-body">
-        <h3 class="card-title text-primary fw-bold mb-4">🏢 Department Sales Summary</h3>
+        <h3 class="card-title">📊 Department Sales Summary Report</h3>
         <div class="table-responsive">
           <table class="table table-bordered table-striped text-center" id="deptTable">
-            <thead class="table-success">
+            <thead>
               <tr>
                 <th>Department</th>
-                <th>Total Sales</th>
+                <th>Total of Sales</th>
                 <th>Grand Total (₱)</th>
               </tr>
             </thead>
@@ -25,12 +288,18 @@
             </tbody>
           </table>
         </div>
-        <div class="mt-3">
-          <a href="dashboard.html" class="btn btn-secondary">⬅ Back to Dashboard</a>
+        <div class="mt-4 d-flex gap-2">
+          <a href="dashboard.html" class="btn btn-secondary">
+            <span style="font-size: 1rem;">⬅</span> Back to Dashboard
+          </a>
+          <button id="downloadPdf" class="btn btn-success">
+            <span style="font-size: 1rem;">📥</span> Download PDF Report
+          </button>
         </div>
       </div>
     </div>
   </div>
+
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
   import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
@@ -62,54 +331,154 @@
     }
   });
 
-  // 📊 Load Sales Summary (dynamic, no hardcode)
+  // 📊 Load Sales Summary
   async function loadSalesSummary() {
     const querySnapshot = await getDocs(collection(db, "entries"));
     let salesData = {};
     let overallTotal = 0;
+    let overallStudents = 0;
 
     querySnapshot.forEach((doc) => {
       const data = doc.data();
       const dept = data.department || "Unknown";
       const quantity = Number(data.quantity) || 0;
-      const unitPrice = Number(data.unitPrice) || 800; // if you stored it
+      const unitPrice = 800; 
       const amount = quantity * unitPrice;
 
       if (!salesData[dept]) {
-        salesData[dept] = { count: 0, total: 0 };
+        salesData[dept] = { students: 0, total: 0 };
       }
 
-      salesData[dept].count += 1;      // number of sales
-      salesData[dept].total += amount; // total sales
+      salesData[dept].students += quantity;
+      salesData[dept].total += amount;
+
+      overallStudents += quantity;
       overallTotal += amount;
     });
 
-    // Insert rows into table
     const tbody = document.querySelector("#deptTable tbody");
-    tbody.innerHTML = ""; // clear old rows
+    tbody.innerHTML = "";
 
-    Object.entries(salesData).forEach(([dept, { count, total }]) => {
+    Object.entries(salesData).forEach(([dept, { students, total }]) => {
       const row = `
         <tr>
           <td>${dept}</td>
-          <td>${count}</td>
+          <td>${students}</td>
           <td>₱${total.toLocaleString()}</td>
         </tr>
       `;
       tbody.insertAdjacentHTML("beforeend", row);
     });
 
-    // Add overall total row
     const finalRow = `
       <tr class="table-info fw-bold">
-        <td colspan="2">OVERALL TOTAL</td>
+        <td>OVERALL TOTAL</td>
+        <td>${overallStudents}</td>
         <td>₱${overallTotal.toLocaleString()}</td>
       </tr>
     `;
     tbody.insertAdjacentHTML("beforeend", finalRow);
   }
-</script>
 
+  // 📥 Download PDF
+  document.getElementById("downloadPdf").addEventListener("click", () => {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    
+    // Set document to support UTF-8 characters
+    doc.setFont("helvetica");
+
+    // Add header with styling
+    doc.setFontSize(18);
+    doc.setTextColor(124, 58, 237); // Purple color
+    doc.text("SML Organization", 105, 15, { align: "center" });
+    
+    doc.setFontSize(14);
+    doc.setTextColor(107, 114, 128); // Gray color
+    doc.text("Department Sales Summary Report", 105, 23, { align: "center" });
+    
+    // Add date
+    doc.setFontSize(10);
+    doc.setTextColor(156, 163, 175);
+    const currentDate = new Date().toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+    doc.text(`Generated on: ${currentDate}`, 105, 30, { align: "center" });
+
+    // Create table data - replace peso sign with PHP for PDF compatibility
+    const tableData = [];
+    const rows = document.querySelectorAll("#deptTable tbody tr");
+    
+    rows.forEach((row) => {
+      const cells = row.querySelectorAll("td");
+      if (cells.length === 3) {
+        // Get the amount text and replace peso sign with PHP
+        let grandTotal = cells[2].textContent.trim();
+        // Replace the peso sign (₱) with PHP for PDF compatibility
+        grandTotal = grandTotal.replace('₱', 'PHP ');
+        
+        tableData.push([
+          cells[0].textContent.trim(),
+          cells[1].textContent.trim(),
+          grandTotal
+        ]);
+      }
+    });
+
+    // Generate table
+    doc.autoTable({
+      head: [['Department', 'Total of Sales', 'Grand Total (PHP)']],
+      body: tableData,
+      startY: 38,
+      theme: "striped",
+      headStyles: { 
+        fillColor: [124, 58, 237], // Purple
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        fontSize: 11,
+        halign: 'center'
+      },
+      bodyStyles: {
+        fontSize: 10,
+        halign: 'center'
+      },
+      columnStyles: {
+        2: { halign: 'right' } // Right align the Grand Total column
+      },
+      alternateRowStyles: {
+        fillColor: [245, 243, 255] // Light purple
+      },
+      didParseCell: function (data) {
+        // Style the OVERALL TOTAL row
+        if (data.row.index === tableData.length - 1 && data.section === 'body') {
+          data.cell.styles.fillColor = [221, 214, 254];
+          data.cell.styles.textColor = [109, 40, 217];
+          data.cell.styles.fontStyle = 'bold';
+          data.cell.styles.fontSize = 11;
+        }
+      }
+    });
+
+    // Add footer
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(156, 163, 175);
+      doc.text(
+        `© ${new Date().getFullYear()} SML Organization - Page ${i} of ${pageCount}`,
+        105,
+        doc.internal.pageSize.height - 10,
+        { align: "center" }
+      );
+    }
+
+    // Save with timestamp
+    const timestamp = new Date().toISOString().split('T')[0];
+    doc.save(`SML_Sales_Summary_${timestamp}.pdf`);
+  });
+</script>
 </body>
 </html>
-  

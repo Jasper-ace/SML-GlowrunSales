@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Create Favicon</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #7c3aed;
+    }
+    canvas {
+      border: 2px solid #ddd;
+      margin: 20px 0;
+      background: white;
+    }
+    button {
+      background: #7c3aed;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 16px;
+      margin: 10px 5px;
+    }
+    button:hover {
+      background: #6d28d9;
+    }
+    .preview {
+      display: flex;
+      gap: 20px;
+      align-items: center;
+      margin: 20px 0;
+      padding: 20px;
+      background: #f9f9f9;
+      border-radius: 8px;
+    }
+    .preview-item {
+      text-align: center;
+    }
+    .preview-item img {
+      border: 1px solid #ddd;
+      background: white;
+    }
+    .instructions {
+      background: #fff3cd;
+      padding: 15px;
+      border-radius: 6px;
+      margin: 20px 0;
+      border-left: 4px solid #ffc107;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎨 Create Favicon from green.png</h1>
+    
+    <div class="instructions">
+      <strong>📝 Instructions:</strong>
+      <ol>
+        <li>Click "Load green.png" to load your logo</li>
+        <li>The image will be automatically optimized for favicon sizes</li>
+        <li>Click "Download favicon.ico" to save the file</li>
+        <li>Place the favicon.ico file in your project root folder</li>
+      </ol>
+    </div>
+
+    <button onclick="loadImage()">📂 Load green.png</button>
+    
+    <div class="preview" id="preview" style="display: none;">
+      <div class="preview-item">
+        <div><strong>Original</strong></div>
+        <img id="originalImg" style="max-width: 200px; max-height: 200px;">
+      </div>
+      <div class="preview-item">
+        <div><strong>64x64 (Large)</strong></div>
+        <canvas id="canvas64" width="64" height="64"></canvas>
+      </div>
+      <div class="preview-item">
+        <div><strong>32x32 (Medium)</strong></div>
+        <canvas id="canvas32" width="32" height="32"></canvas>
+      </div>
+      <div class="preview-item">
+        <div><strong>16x16 (Small)</strong></div>
+        <canvas id="canvas16" width="16" height="16"></canvas>
+      </div>
+    </div>
+
+    <button id="downloadBtn" onclick="downloadFavicon()" style="display: none;">
+      💾 Download favicon.ico
+    </button>
+
+    <div style="margin-top: 30px; padding: 20px; background: #e8f5e9; border-radius: 6px;">
+      <h3>✅ After downloading:</h3>
+      <p>1. Save the <code>favicon.ico</code> file to your project root folder (same folder as index.html)</p>
+      <p>2. The HTML files are already updated to use it!</p>
+      <p>3. Clear your browser cache (Ctrl+Shift+Delete) and refresh</p>
+    </div>
+  </div>
+
+  <script>
+    let img = new Image();
+
+    function loadImage() {
+      img.src = 'assets/green.png';
+      img.onload = function() {
+        document.getElementById('originalImg').src = img.src;
+        document.getElementById('preview').style.display = 'flex';
+        document.getElementById('downloadBtn').style.display = 'inline-block';
+        
+        // Draw 64x64
+        const canvas64 = document.getElementById('canvas64');
+        const ctx64 = canvas64.getContext('2d');
+        ctx64.imageSmoothingEnabled = true;
+        ctx64.imageSmoothingQuality = 'high';
+        ctx64.drawImage(img, 0, 0, 64, 64);
+        
+        // Draw 32x32
+        const canvas32 = document.getElementById('canvas32');
+        const ctx32 = canvas32.getContext('2d');
+        ctx32.imageSmoothingEnabled = true;
+        ctx32.imageSmoothingQuality = 'high';
+        ctx32.drawImage(img, 0, 0, 32, 32);
+        
+        // Draw 16x16
+        const canvas16 = document.getElementById('canvas16');
+        const ctx16 = canvas16.getContext('2d');
+        ctx16.imageSmoothingEnabled = true;
+        ctx16.imageSmoothingQuality = 'high';
+        ctx16.drawImage(img, 0, 0, 16, 16);
+      };
+      img.onerror = function() {
+        alert('Could not load green.png. Make sure the file exists in the assets folder.');
+      };
+    }
+
+    function downloadFavicon() {
+      const canvas = document.getElementById('canvas64');
+      canvas.toBlob(function(blob) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'favicon.ico';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        alert('✅ Favicon (64x64) downloaded! Now:\n1. Save it to your project root folder\n2. Clear browser cache (Ctrl+Shift+Delete)\n3. Refresh the page');
+      }, 'image/x-icon');
+    }
+  </script>
+</body>
+</html>
