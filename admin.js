@@ -36,7 +36,7 @@ const adminEmails = [
   "jasperace.lapitan@lorma.edu"
 ];
 
-const UNIT_PRICE = 800;
+const UNIT_PRICE = 680;
 let entries = [];
 let deletedEntries = [];
 let currentUser = null;
@@ -199,16 +199,19 @@ function updateStats() {
   const uniqueUsers = new Set(entries.map(e => e.soldBy)).size;
 
   const today = new Date().toISOString().split('T')[0];
-  const todayEntries = entries.filter(e => {
+  const todayQuantity = entries.filter(e => {
     if (!e.createdAt) return false;
     const entryDate = new Date(e.createdAt).toISOString().split('T')[0];
     return entryDate === today;
-  }).length;
+  }).reduce((sum, e) => {
+    const qty = toNumberSafe(e.quantity, 0);
+    return sum + qty;
+  }, 0);
 
   if (totalEntriesEl) totalEntriesEl.textContent = totalEntries;
   if (totalRevenueEl) totalRevenueEl.textContent = formatCurrency(totalRevenue);
   if (totalUsersEl) totalUsersEl.textContent = uniqueUsers;
-  if (todayEntriesEl) todayEntriesEl.textContent = todayEntries;
+  if (todayEntriesEl) todayEntriesEl.textContent = todayQuantity;
 }
 
 // Render user table
@@ -371,14 +374,15 @@ function renderActivityTable() {
 
   let filtered = [...entries];
 
-  // Filter by search (ID or Name)
+  // Filter by search (ID, Ticket Number, or Name)
   if (searchVal) {
     filtered = filtered.filter(e => {
       const schoolId = safeStr(e.schoolId).toLowerCase();
+      const ticketNumber = safeStr(e.ticketNumber).toLowerCase();
       const name = safeStr(e.name).toLowerCase();
       const lastname = safeStr(e.lastname).toLowerCase();
       const fullName = `${name} ${lastname}`;
-      return schoolId.includes(searchVal) || fullName.includes(searchVal) || name.includes(searchVal) || lastname.includes(searchVal);
+      return schoolId.includes(searchVal) || ticketNumber.includes(searchVal) || fullName.includes(searchVal) || name.includes(searchVal) || lastname.includes(searchVal);
     });
   }
 
@@ -407,11 +411,11 @@ function renderActivityTable() {
     filtered = filtered.filter(e => safeStr(e.soldBy) === userVal);
   }
 
-  // Sort by date (newest first)
+  // Sort by date (first come first serve - oldest first)
   filtered.sort((a, b) => {
     const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
     const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
-    return dateB - dateA;
+    return dateA - dateB; // Ascending order (oldest first - first come first serve)
   });
 
   tbody.innerHTML = "";
@@ -419,13 +423,13 @@ function renderActivityTable() {
   if (filtered.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="8" class="text-center text-muted">No activities found</td>
+        <td colspan="10" class="text-center text-muted">No activities found</td>
       </tr>
     `;
     return;
   }
 
-  filtered.forEach(e => {
+  filtered.forEach((e, index) => {
     const qty = toNumberSafe(e.quantity, 0);
     const price = toNumberSafe(e.unitPrice, UNIT_PRICE);
     const total = qty * price;
@@ -436,7 +440,9 @@ function renderActivityTable() {
 
     const row = document.createElement("tr");
     row.innerHTML = `
+      <td class="text-center">${index + 1}</td>
       <td>${safeStr(e.schoolId)}</td>
+      <td>${safeStr(e.ticketNumber)}</td>
       <td>${safeStr(e.name)} ${safeStr(e.lastname)}</td>
       <td>${safeStr(e.department)}</td>
       <td class="text-center">${qty}</td>
@@ -598,9 +604,9 @@ function renderDeletedTable() {
   if (deletedEntries.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="8" class="text-center text-muted py-4">
+        <td colspan="10" class="text-center text-muted py-4">
           <div style="font-size: 2rem; margin-bottom: 0.5rem;">✨</div>
-          <div>No deleted entries</div>
+          <div>No deleted Sales</div>
         </td>
       </tr>
     `;
@@ -614,21 +620,22 @@ function renderDeletedTable() {
     return dateB - dateA;
   });
 
-  // Filter by search (ID or Name)
+  // Filter by search (ID, Ticket Number, or Name)
   if (searchVal) {
     sorted = sorted.filter(e => {
       const schoolId = safeStr(e.schoolId).toLowerCase();
+      const ticketNumber = safeStr(e.ticketNumber).toLowerCase();
       const name = safeStr(e.name).toLowerCase();
       const lastname = safeStr(e.lastname).toLowerCase();
       const fullName = `${name} ${lastname}`;
-      return schoolId.includes(searchVal) || fullName.includes(searchVal) || name.includes(searchVal) || lastname.includes(searchVal);
+      return schoolId.includes(searchVal) || ticketNumber.includes(searchVal) || fullName.includes(searchVal) || name.includes(searchVal) || lastname.includes(searchVal);
     });
   }
 
   if (sorted.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="8" class="text-center text-muted py-4">
+        <td colspan="10" class="text-center text-muted py-4">
           <div style="font-size: 2rem; margin-bottom: 0.5rem;">🔍</div>
           <div>No matching entries found</div>
         </td>
@@ -637,7 +644,7 @@ function renderDeletedTable() {
     return;
   }
 
-  sorted.forEach(e => {
+  sorted.forEach((e, index) => {
     const qty = toNumberSafe(e.quantity, 0);
     const price = toNumberSafe(e.unitPrice, UNIT_PRICE);
     const total = qty * price;
@@ -647,7 +654,9 @@ function renderDeletedTable() {
     const row = document.createElement("tr");
     row.style.backgroundColor = "rgba(239, 68, 68, 0.05)";
     row.innerHTML = `
+      <td class="text-center">${index + 1}</td>
       <td>${safeStr(e.schoolId)}</td>
+      <td>${safeStr(e.ticketNumber)}</td>
       <td>${safeStr(e.name)} ${safeStr(e.lastname)}</td>
       <td>${safeStr(e.department)}</td>
       <td class="text-center">${qty}</td>
