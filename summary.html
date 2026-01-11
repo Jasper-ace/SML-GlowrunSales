@@ -343,7 +343,8 @@
       const data = doc.data();
       const dept = data.department || "Unknown";
       const quantity = Number(data.quantity) || 0;
-      const unitPrice = 800; 
+      // Use actual unit price from the entry, fallback to 680 if not available
+      const unitPrice = Number(data.unitPrice) || 680;
       const amount = quantity * unitPrice;
 
       if (!salesData[dept]) {

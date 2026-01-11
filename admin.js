@@ -12,7 +12,8 @@ import {
   deleteDoc,
   doc,
   onSnapshot,
-  setDoc
+  setDoc,
+  addDoc
 } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
 
 // Firebase config
@@ -73,10 +74,12 @@ const confirmRestoreBtn = document.getElementById("confirmRestoreBtn");
 const clearAllModalEl = document.getElementById("clearAllModal");
 const confirmClearAllBtn = document.getElementById("confirmClearAllBtn");
 const clearDeletedBtn = document.getElementById("clearDeletedBtn");
+const adminViewTicketsModalEl = document.getElementById("adminViewTicketsModal");
 
 const deleteModal = deleteModalEl ? new bootstrap.Modal(deleteModalEl) : null;
 const restoreModal = restoreModalEl ? new bootstrap.Modal(restoreModalEl) : null;
 const clearAllModal = clearAllModalEl ? new bootstrap.Modal(clearAllModalEl) : null;
+const adminViewTicketsModal = adminViewTicketsModalEl ? new bootstrap.Modal(adminViewTicketsModalEl) : null;
 
 // Online Users Modal
 const onlineUsersModalEl = document.getElementById("onlineUsersModal");
@@ -411,16 +414,37 @@ function renderActivityTable() {
     filtered = filtered.filter(e => safeStr(e.soldBy) === userVal);
   }
 
-  // Sort by date (first come first serve - oldest first)
-  filtered.sort((a, b) => {
-    const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
-    const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
+  // Group entries by batchId or by schoolId + timestamp for entries bought together
+  const groupedEntries = {};
+  filtered.forEach(entry => {
+    let groupKey;
+    
+    if (entry.batchId) {
+      // New entries with batchId
+      groupKey = entry.batchId;
+    } else {
+      // Older entries or entries without batchId - group by schoolId + createdAt (within same minute)
+      const timestamp = entry.createdAt ? new Date(entry.createdAt).getTime() : 0;
+      const roundedTimestamp = Math.floor(timestamp / 60000) * 60000; // Group within same minute
+      groupKey = `${entry.schoolId}_${roundedTimestamp}`;
+    }
+    
+    if (!groupedEntries[groupKey]) {
+      groupedEntries[groupKey] = [];
+    }
+    groupedEntries[groupKey].push(entry);
+  });
+
+  // Sort grouped entries by time (first come first serve - oldest first)
+  const sortedBatches = Object.values(groupedEntries).sort((a, b) => {
+    const dateA = a[0].createdAt ? new Date(a[0].createdAt) : new Date(0);
+    const dateB = b[0].createdAt ? new Date(b[0].createdAt) : new Date(0);
     return dateA - dateB; // Ascending order (oldest first - first come first serve)
   });
 
   tbody.innerHTML = "";
 
-  if (filtered.length === 0) {
+  if (sortedBatches.length === 0) {
     tbody.innerHTML = `
       <tr>
         <td colspan="10" class="text-center text-muted">No activities found</td>
@@ -429,28 +453,52 @@ function renderActivityTable() {
     return;
   }
 
-  filtered.forEach((e, index) => {
-    const qty = toNumberSafe(e.quantity, 0);
-    const price = toNumberSafe(e.unitPrice, UNIT_PRICE);
-    const total = qty * price;
-    const timestamp = e.createdAt ? new Date(e.createdAt).toLocaleString() : "—";
+  sortedBatches.forEach((batch, index) => {
+    // Sort batch by ticket number
+    batch.sort((a, b) => safeStr(a.ticketNumber).localeCompare(safeStr(b.ticketNumber)));
     
-    // Display soldByName if available, otherwise format soldBy
-    const soldByDisplay = e.soldByName || safeStr(e.soldBy || "—");
+    const firstEntry = batch[0];
+    const totalQuantity = batch.length;
+    const totalPrice = batch.reduce((sum, e) => {
+      const qty = toNumberSafe(e.quantity, 0);
+      const price = toNumberSafe(e.unitPrice, UNIT_PRICE);
+      return sum + (qty * price);
+    }, 0);
+    
+    const timestamp = firstEntry.createdAt ? new Date(firstEntry.createdAt).toLocaleString() : "—";
+    const soldByDisplay = firstEntry.soldByName || safeStr(firstEntry.soldBy || "—");
+
+    // Create ticket number display
+    let ticketNumberDisplay;
+    if (batch.length === 1) {
+      // Single ticket
+      const ticketNum = safeStr(firstEntry.ticketNumber);
+      ticketNumberDisplay = ticketNum || "—";
+    } else {
+      // Multiple tickets - show "View Tickets" button
+      ticketNumberDisplay = `
+        <button class="btn btn-sm btn-primary view-admin-tickets-btn" 
+                data-school-id="${safeStr(firstEntry.schoolId)}" 
+                data-timestamp="${firstEntry.createdAt}"
+                style="background: #7c3aed; border: none; padding: 4px 8px; border-radius: 12px; font-size: 0.8rem;">
+          View ${batch.length} tickets
+        </button>
+      `;
+    }
 
     const row = document.createElement("tr");
     row.innerHTML = `
       <td class="text-center">${index + 1}</td>
-      <td>${safeStr(e.schoolId)}</td>
-      <td>${safeStr(e.ticketNumber)}</td>
-      <td>${safeStr(e.name)} ${safeStr(e.lastname)}</td>
-      <td>${safeStr(e.department)}</td>
-      <td class="text-center">${qty}</td>
-      <td class="text-center">${formatCurrency(total)}</td>
+      <td>${safeStr(firstEntry.schoolId)}</td>
+      <td>${ticketNumberDisplay}</td>
+      <td>${safeStr(firstEntry.name)} ${safeStr(firstEntry.lastname)}</td>
+      <td>${safeStr(firstEntry.department)}</td>
+      <td class="text-center">${totalQuantity}</td>
+      <td class="text-center">${formatCurrency(totalPrice)}</td>
       <td>${soldByDisplay}</td>
       <td>${timestamp}</td>
       <td class="text-center">
-        <button class="btn btn-sm btn-danger" data-id="${e.id}">🗑️</button>
+        <button class="btn btn-sm btn-danger" data-id="${firstEntry.id}">🗑️</button>
       </td>
     `;
     tbody.appendChild(row);
@@ -459,6 +507,13 @@ function renderActivityTable() {
   // Attach delete handlers
   tbody.querySelectorAll("button[data-id]").forEach(btn => {
     btn.onclick = () => openDeleteModal(btn.getAttribute("data-id"));
+  });
+
+  // Attach view tickets modal handlers
+  tbody.querySelectorAll(".view-admin-tickets-btn").forEach(btn => {
+    const schoolId = btn.getAttribute("data-school-id");
+    const timestamp = btn.getAttribute("data-timestamp");
+    btn.onclick = () => openAdminViewTicketsModal(schoolId, timestamp);
   });
 }
 
@@ -537,17 +592,59 @@ async function confirmRestore() {
       return;
     }
 
-    // Remove deletion metadata
-    const { deletedAt, deletedBy, deletedByName, originalId, ...restoredEntry } = entryToRestore;
+    // Check if this is a grouped entry (new format) or individual entry (old format)
+    if (entryToRestore.ticketDetails && entryToRestore.ticketDetails.length > 0) {
+      // New grouped format - restore individual tickets
+      const restorePromises = [];
+      
+      for (const ticketDetail of entryToRestore.ticketDetails) {
+        const restoredTicket = {
+          schoolId: entryToRestore.schoolId,
+          ticketNumber: ticketDetail.ticketNumber,
+          name: entryToRestore.name,
+          lastname: entryToRestore.lastname,
+          yrlvl: entryToRestore.yrlvl,
+          department: entryToRestore.department,
+          quantity: 1, // Each entry represents 1 ticket
+          unitPrice: ticketDetail.unitPrice,
+          isEarlyBird: ticketDetail.isEarlyBird,
+          ticketIndex: ticketDetail.ticketIndex,
+          soldStatus: "available", // Reset to available on restore
+          soldAt: null,
+          createdAt: entryToRestore.createdAt,
+          soldBy: entryToRestore.soldBy,
+          soldByName: entryToRestore.soldByName,
+          batchId: entryToRestore.batchId,
+          totalTicketsInBatch: entryToRestore.quantity
+        };
+        
+        // Use original ID if available, otherwise generate new one
+        if (ticketDetail.id) {
+          restorePromises.push(setDoc(doc(db, "entries", ticketDetail.id), restoredTicket));
+        } else {
+          restorePromises.push(addDoc(collection(db, "entries"), restoredTicket));
+        }
+      }
+      
+      // Execute all restore operations
+      await Promise.all(restorePromises);
+      
+      showToast(`${entryToRestore.quantity} tickets restored successfully`);
+    } else {
+      // Old individual format - restore as single entry
+      const { deletedAt, deletedBy, deletedByName, originalId, ticketNumbers, ticketDetails, totalPrice, ...restoredEntry } = entryToRestore;
 
-    // Move back to entries collection
-    await setDoc(doc(db, "entries", restoreId), restoredEntry);
+      // Move back to entries collection using original ID if available
+      const restoreDocId = originalId || restoreId;
+      await setDoc(doc(db, "entries", restoreDocId), restoredEntry);
+      
+      showToast("Entry restored successfully");
+    }
     
     // Delete from deletedEntries collection
     await deleteDoc(doc(db, "deletedEntries", restoreId));
     
     if (restoreModal) restoreModal.hide();
-    showToast("Entry restored successfully");
   } catch (err) {
     console.error("Restore failed:", err);
     showToast("Failed to restore entry: " + err.message);
@@ -625,10 +722,16 @@ function renderDeletedTable() {
     sorted = sorted.filter(e => {
       const schoolId = safeStr(e.schoolId).toLowerCase();
       const ticketNumber = safeStr(e.ticketNumber).toLowerCase();
+      const ticketNumbers = safeStr(e.ticketNumbers).toLowerCase(); // New grouped format
       const name = safeStr(e.name).toLowerCase();
       const lastname = safeStr(e.lastname).toLowerCase();
       const fullName = `${name} ${lastname}`;
-      return schoolId.includes(searchVal) || ticketNumber.includes(searchVal) || fullName.includes(searchVal) || name.includes(searchVal) || lastname.includes(searchVal);
+      return schoolId.includes(searchVal) || 
+             ticketNumber.includes(searchVal) || 
+             ticketNumbers.includes(searchVal) || 
+             fullName.includes(searchVal) || 
+             name.includes(searchVal) || 
+             lastname.includes(searchVal);
     });
   }
 
@@ -646,8 +749,37 @@ function renderDeletedTable() {
 
   sorted.forEach((e, index) => {
     const qty = toNumberSafe(e.quantity, 0);
-    const price = toNumberSafe(e.unitPrice, UNIT_PRICE);
-    const total = qty * price;
+    
+    // Handle both old individual entries and new grouped entries
+    let price, total, ticketNumberDisplay;
+    
+    if (e.totalPrice) {
+      // New grouped entry format
+      total = toNumberSafe(e.totalPrice, 0);
+      price = e.unitPrice === "Mixed" ? "Mixed" : toNumberSafe(e.unitPrice, UNIT_PRICE);
+      
+      // Create ticket number display
+      if (qty === 1) {
+        // Single ticket - show ticket number directly
+        const ticketNumbers = safeStr(e.ticketNumbers);
+        ticketNumberDisplay = ticketNumbers || "—";
+      } else {
+        // Multiple tickets - show "View Tickets" button
+        ticketNumberDisplay = `
+          <button class="btn btn-sm btn-primary view-deleted-tickets-btn" 
+                  data-entry-index="${index}"
+                  style="background: #7c3aed; border: none; padding: 4px 8px; border-radius: 12px; font-size: 0.8rem;">
+            View ${qty} tickets
+          </button>
+        `;
+      }
+    } else {
+      // Old individual entry format
+      price = toNumberSafe(e.unitPrice, UNIT_PRICE);
+      total = qty * price;
+      ticketNumberDisplay = safeStr(e.ticketNumber);
+    }
+    
     const deletedAt = e.deletedAt ? new Date(e.deletedAt).toLocaleString() : "—";
     const deletedBy = e.deletedByName || e.deletedBy || "—";
 
@@ -656,7 +788,7 @@ function renderDeletedTable() {
     row.innerHTML = `
       <td class="text-center">${index + 1}</td>
       <td>${safeStr(e.schoolId)}</td>
-      <td>${safeStr(e.ticketNumber)}</td>
+      <td>${ticketNumberDisplay}</td>
       <td>${safeStr(e.name)} ${safeStr(e.lastname)}</td>
       <td>${safeStr(e.department)}</td>
       <td class="text-center">${qty}</td>
@@ -674,11 +806,214 @@ function renderDeletedTable() {
     `;
     tbody.appendChild(row);
   });
+
+  // Attach view deleted tickets modal handlers
+  tbody.querySelectorAll(".view-deleted-tickets-btn").forEach(btn => {
+    const entryIndex = parseInt(btn.getAttribute("data-entry-index"));
+    const deletedEntry = sorted[entryIndex];
+    btn.onclick = () => openAdminDeletedViewTicketsModal(deletedEntry);
+  });
+}
+
+function openAdminDeletedViewTicketsModal(deletedEntry) {
+  // Create modal content for deleted entries
+  const modalContent = document.getElementById("adminViewTicketsContent");
+  if (!modalContent) return;
+
+  // Handle both old individual entries and new grouped entries
+  let ticketDetails = [];
+  let entryInfo = {};
+
+  if (deletedEntry.ticketDetails && deletedEntry.ticketDetails.length > 0) {
+    // New grouped format
+    ticketDetails = deletedEntry.ticketDetails;
+    entryInfo = {
+      name: deletedEntry.name,
+      lastname: deletedEntry.lastname,
+      schoolId: deletedEntry.schoolId,
+      department: deletedEntry.department,
+      yrlvl: deletedEntry.yrlvl,
+      quantity: deletedEntry.quantity,
+      totalPrice: deletedEntry.totalPrice
+    };
+  } else {
+    // Old individual format or grouped format with ticketNumbers string
+    if (deletedEntry.ticketNumbers) {
+      // New grouped format but without ticketDetails array
+      const ticketNumbersArray = deletedEntry.ticketNumbers.split(", ");
+      ticketDetails = ticketNumbersArray.map(ticketNum => ({
+        ticketNumber: ticketNum,
+        unitPrice: deletedEntry.unitPrice === "Mixed" ? UNIT_PRICE : deletedEntry.unitPrice,
+        isEarlyBird: false // Default since we don't have this info
+      }));
+      entryInfo = {
+        name: deletedEntry.name,
+        lastname: deletedEntry.lastname,
+        schoolId: deletedEntry.schoolId,
+        department: deletedEntry.department,
+        yrlvl: deletedEntry.yrlvl,
+        quantity: deletedEntry.quantity,
+        totalPrice: deletedEntry.totalPrice
+      };
+    } else {
+      // Old individual format
+      ticketDetails = [{
+        ticketNumber: deletedEntry.ticketNumber,
+        unitPrice: deletedEntry.unitPrice,
+        isEarlyBird: deletedEntry.isEarlyBird || false
+      }];
+      entryInfo = {
+        name: deletedEntry.name,
+        lastname: deletedEntry.lastname,
+        schoolId: deletedEntry.schoolId,
+        department: deletedEntry.department,
+        yrlvl: deletedEntry.yrlvl,
+        quantity: deletedEntry.quantity || 1,
+        totalPrice: deletedEntry.unitPrice || 680
+      };
+    }
+  }
+
+  modalContent.innerHTML = `
+    <div class="mb-4">
+      <h6 class="fw-bold mb-3">Deleted Purchase Details</h6>
+      <div class="alert alert-warning">
+        <strong>⚠️ This purchase has been deleted</strong><br>
+        <small>Deleted on: ${deletedEntry.deletedAt ? new Date(deletedEntry.deletedAt).toLocaleString() : '—'}</small><br>
+        <small>Deleted by: ${deletedEntry.deletedByName || deletedEntry.deletedBy || '—'}</small>
+      </div>
+      <div class="row">
+        <div class="col-md-6">
+          <p><strong>Student:</strong> ${safeStr(entryInfo.name)} ${safeStr(entryInfo.lastname)}</p>
+          <p><strong>ID Number:</strong> ${safeStr(entryInfo.schoolId)}</p>
+          <p><strong>Department:</strong> ${safeStr(entryInfo.department)}</p>
+        </div>
+        <div class="col-md-6">
+          <p><strong>Year Level:</strong> ${safeStr(entryInfo.yrlvl)}</p>
+          <p><strong>Total Tickets:</strong> ${entryInfo.quantity}</p>
+          <p><strong>Total Price:</strong> ${formatCurrency(entryInfo.totalPrice)}</p>
+        </div>
+      </div>
+    </div>
+    
+    <h6 class="fw-bold mb-3">Deleted Ticket Numbers</h6>
+    <div class="row g-2">
+      ${ticketDetails.map(ticketDetail => {
+        const earlyBirdBadge = ticketDetail.isEarlyBird 
+          ? '<span class="badge bg-success ms-2" style="font-size: 0.7rem;">Early Bird</span>' 
+          : '<span class="badge bg-secondary ms-2" style="font-size: 0.7rem;">Regular</span>';
+        
+        return `
+          <div class="col-md-6 col-lg-4">
+            <div class="card border-0 shadow-sm" style="background-color: #fee2e2;">
+              <div class="card-body py-2 px-3">
+                <div class="d-flex justify-content-between align-items-center">
+                  <span class="fw-bold text-danger" style="font-size: 0.9rem;">Ticket ${safeStr(ticketDetail.ticketNumber)}</span>
+                  ${earlyBirdBadge}
+                </div>
+                <small class="text-muted">${formatCurrency(ticketDetail.unitPrice)}</small>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+
+  if (adminViewTicketsModal) adminViewTicketsModal.show();
 }
 
 // Make functions global
 window.openRestoreModal = openRestoreModal;
 window.permanentlyDelete = permanentlyDelete;
+window.openAdminViewTicketsModal = openAdminViewTicketsModal;
+window.openAdminDeletedViewTicketsModal = openAdminDeletedViewTicketsModal;
+
+function openAdminViewTicketsModal(schoolId, timestamp) {
+  // Find all tickets in the same batch by schoolId and timestamp
+  const targetTime = new Date(timestamp).getTime();
+  const roundedTimestamp = Math.floor(targetTime / 60000) * 60000;
+  
+  let batchEntries = [];
+  
+  // First try to find by batchId
+  const entryWithBatchId = entries.find(e => 
+    safeStr(e.schoolId) === schoolId && 
+    e.createdAt && 
+    Math.abs(new Date(e.createdAt).getTime() - targetTime) < 60000
+  );
+  
+  if (entryWithBatchId && entryWithBatchId.batchId) {
+    batchEntries = entries.filter(e => e.batchId === entryWithBatchId.batchId);
+  } else {
+    // Fallback to grouping by schoolId + timestamp
+    batchEntries = entries.filter(e => {
+      if (safeStr(e.schoolId) !== schoolId) return false;
+      if (!e.createdAt) return false;
+      const eTimestamp = new Date(e.createdAt).getTime();
+      const eRoundedTimestamp = Math.floor(eTimestamp / 60000) * 60000;
+      return eRoundedTimestamp === roundedTimestamp;
+    });
+  }
+
+  if (batchEntries.length === 0) {
+    showToast("No tickets found for this entry");
+    return;
+  }
+
+  // Sort batch entries by ticket number
+  batchEntries.sort((a, b) => safeStr(a.ticketNumber).localeCompare(safeStr(b.ticketNumber)));
+
+  // Create modal content
+  const modalContent = document.getElementById("adminViewTicketsContent");
+  if (modalContent) {
+    const firstEntry = batchEntries[0];
+    const totalPrice = batchEntries.reduce((sum, e) => sum + toNumberSafe(e.unitPrice, UNIT_PRICE), 0);
+    
+    modalContent.innerHTML = `
+      <div class="mb-4">
+        <h6 class="fw-bold mb-3">Purchase Details</h6>
+        <div class="row">
+          <div class="col-md-6">
+            <p><strong>Student:</strong> ${safeStr(firstEntry.name)} ${safeStr(firstEntry.lastname)}</p>
+            <p><strong>ID Number:</strong> ${safeStr(firstEntry.schoolId)}</p>
+            <p><strong>Department:</strong> ${safeStr(firstEntry.department)}</p>
+          </div>
+          <div class="col-md-6">
+            <p><strong>Year Level:</strong> ${safeStr(firstEntry.yrlvl)}</p>
+            <p><strong>Total Tickets:</strong> ${batchEntries.length}</p>
+            <p><strong>Total Price:</strong> ${formatCurrency(totalPrice)}</p>
+          </div>
+        </div>
+      </div>
+      
+      <h6 class="fw-bold mb-3">Ticket Numbers</h6>
+      <div class="row g-2">
+        ${batchEntries.map(ticketEntry => {
+          const earlyBirdBadge = ticketEntry.isEarlyBird 
+            ? '<span class="badge bg-success ms-2" style="font-size: 0.7rem;">Early Bird</span>' 
+            : '<span class="badge bg-secondary ms-2" style="font-size: 0.7rem;">Regular</span>';
+          
+          return `
+            <div class="col-md-6 col-lg-4">
+              <div class="card border-0 shadow-sm">
+                <div class="card-body py-2 px-3">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <span class="fw-bold" style="font-size: 0.9rem;">Ticket ${safeStr(ticketEntry.ticketNumber)}</span>
+                    ${earlyBirdBadge}
+                  </div>
+                  <small class="text-muted">${formatCurrency(ticketEntry.unitPrice)}</small>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+  }
+
+  if (adminViewTicketsModal) adminViewTicketsModal.show();
+}
 
 // Global filter function
 window.filterByUser = function(user) {

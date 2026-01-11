@@ -788,35 +788,35 @@ async function confirmDeleteHandler() {
     
     const groupedDeletedEntry = {
       // Use first entry's basic info
-      schoolId: firstEntry.schoolId,
-      name: firstEntry.name,
-      lastname: firstEntry.lastname,
-      yrlvl: firstEntry.yrlvl,
-      department: firstEntry.department,
+      schoolId: safeStr(firstEntry.schoolId),
+      name: safeStr(firstEntry.name),
+      lastname: safeStr(firstEntry.lastname),
+      yrlvl: safeStr(firstEntry.yrlvl),
+      department: safeStr(firstEntry.department),
       
       // Batch information
       quantity: batchEntries.length,
       ticketNumbers: ticketNumbers, // All ticket numbers as comma-separated string
-      unitPrice: batchEntries.length === 1 ? firstEntry.unitPrice : "Mixed", // Show "Mixed" if different prices
+      unitPrice: batchEntries.length === 1 ? toNumberSafe(firstEntry.unitPrice, UNIT_PRICE) : "Mixed", // Show "Mixed" if different prices
       totalPrice: totalPrice,
       
       // Metadata
-      batchId: firstEntry.batchId || `${firstEntry.schoolId}_${Date.now()}`,
-      originalIds: batchEntries.map(e => e.id), // Store all original IDs
+      batchId: safeStr(firstEntry.batchId) || `${safeStr(firstEntry.schoolId)}_${Date.now()}`,
+      originalIds: batchEntries.map(e => safeStr(e.id)), // Store all original IDs
       deletedAt: new Date().toISOString(),
-      deletedBy: currentUser ? currentUser.email : "Unknown",
-      deletedByName: currentUser ? currentUser.displayName || currentUser.email : "Unknown",
-      createdAt: firstEntry.createdAt,
-      soldBy: firstEntry.soldBy,
-      soldByName: firstEntry.soldByName,
+      deletedBy: currentUser ? safeStr(currentUser.email) : "Unknown",
+      deletedByName: currentUser ? safeStr(currentUser.displayName || currentUser.email) : "Unknown",
+      createdAt: safeStr(firstEntry.createdAt) || new Date().toISOString(),
+      soldBy: safeStr(firstEntry.soldBy) || "Unknown",
+      soldByName: safeStr(firstEntry.soldByName) || safeStr(firstEntry.soldBy) || "Unknown",
       
       // Individual ticket details (for restore functionality)
       ticketDetails: batchEntries.map(entry => ({
-        id: entry.id,
-        ticketNumber: entry.ticketNumber,
-        unitPrice: entry.unitPrice,
-        isEarlyBird: entry.isEarlyBird,
-        ticketIndex: entry.ticketIndex
+        id: safeStr(entry.id),
+        ticketNumber: safeStr(entry.ticketNumber),
+        unitPrice: toNumberSafe(entry.unitPrice, UNIT_PRICE),
+        isEarlyBird: entry.isEarlyBird === true, // Convert to boolean, default false
+        ticketIndex: toNumberSafe(entry.ticketIndex, 1)
       }))
     };
 
