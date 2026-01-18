@@ -42,7 +42,8 @@
       </div>
       <div class="d-flex align-items-center gap-2 gap-md-3">
         <div class="d-flex align-items-center" id="userProfile">
-          <img id="userPhoto" class="rounded-circle me-2" src="https://via.placeholder.com/40" alt="Profile" width="40" height="40">
+          <img id="userPhoto" class="rounded-circle me-2" src="https://via.placeholder.com/40" alt="Profile" width="40"
+            height="40">
           <span id="userName" class="fw-bold d-none d-sm-inline"></span>
         </div>
         <button id="logoutBtn" class="btn btn-danger btn-sm">
@@ -92,15 +93,16 @@
                 <label for="department" class="form-label">Department</label>
                 <select class="form-select" id="department" required>
                   <option value="">Select Department</option>
-                  <option value="CCSE">CCSE</option>
-                  <option value="COB">COB</option>
-                  <option value="SDI">SDI</option>
-                  <option value="COPSY">COPSY</option>
-                  <option value="CON">CON</option>
-                  <option value="CPRT">CPRT</option>
-                  <option value="CRT">CRT</option>
-                  <option value="CMLS">CMLS</option>
-                  <option value="COP">COP</option>
+                  <option value="CCSE">CCSE (College of Computer Studies and Engineering)</option>
+                  <option value="COPSY">COPSY (College of Psychology)</option>
+                  <option value="COB">COB (College of Business)</option>
+                  <option value="CON">CON (College of Nursing)</option>
+                  <option value="CMLS">CMLS (College of Medical Laboratory Sciences)</option>
+                  <option value="CORT">CORT (College of Respiratory Therapy)</option>
+                  <option value="COP">COP (College of Pharmacy)</option>
+                  <option value="CPT">CPT (College of Physical Therapy)</option>
+                  <option value="CRT">CRT (College of Radiologic Technology)</option>
+                  <option value="CIE">CIE (College of Inclusive Education)</option>
                 </select>
               </div>
               <div class="mb-3">
@@ -110,7 +112,7 @@
                   <small class="text-muted">Loading pricing information...</small>
                 </div>
               </div>
-              
+
               <!-- Dynamic Ticket Number Fields -->
               <div id="ticketNumbersContainer" class="mb-3" style="display: none;">
                 <label class="form-label">Ticket Numbers</label>
@@ -149,15 +151,16 @@
               <div class="col-md-3">
                 <select id="filterDepartment" class="form-select">
                   <option value="">All Departments</option>
-                  <option value="CCSE">CCSE</option>
-                  <option value="COB">COB</option>
-                  <option value="SDI">SDI</option>
-                  <option value="COPSY">COPSY</option>
-                  <option value="CON">CON</option>
-                  <option value="CPRT">CPRT</option>
-                  <option value="CRT">CRT</option>
-                  <option value="CMLS">CMLS</option>
-                  <option value="COP">COP</option>
+                  <option value="CCSE">CCSE (College of Computer Studies and Engineering)</option>
+                  <option value="COPSY">COPSY (College of Psychology)</option>
+                  <option value="COB">COB (College of Business)</option>
+                  <option value="CON">CON (College of Nursing)</option>
+                  <option value="CMLS">CMLS (College of Medical Laboratory Sciences)</option>
+                  <option value="CORT">CORT (College of Respiratory Therapy)</option>
+                  <option value="COP">COP (College of Pharmacy)</option>
+                  <option value="CPT">CPT (College of Physical Therapy)</option>
+                  <option value="CRT">CRT (College of Radiologic Technology)</option>
+                  <option value="CIE">CIE (College of Inclusive Education)</option>
                 </select>
               </div>
               <div class="col-md-3">
@@ -193,11 +196,13 @@
                   </tbody>
                 </table>
               </div>
-              
+
               <!-- Fixed Grand Total Footer -->
-              <div style="border-top: 3px solid var(--primary-purple); background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%); padding: 1rem; text-align: center;">
+              <div
+                style="border-top: 3px solid var(--primary-purple); background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%); padding: 1rem; text-align: center;">
                 <span class="fw-bold" style="font-size: 1.1rem;">Grand Total: </span>
-                <span id="grandTotal" class="fw-bold" style="color: var(--primary-purple); font-size: 1.3rem;">₱0.00</span>
+                <span id="grandTotal" class="fw-bold"
+                  style="color: var(--primary-purple); font-size: 1.3rem;">₱0.00</span>
               </div>
             </div>
 
@@ -243,21 +248,23 @@
                       <div class="mb-3">
                         <label for="editDepartment" class="form-label">Department</label>
                         <select class="form-select" id="editDepartment" required>
-                          <option value="CCSE">CCSE</option>
-                          <option value="COB">COB</option>
-                          <option value="SDI">SDI</option>
-                          <option value="COPSY">COPSY</option>
-                          <option value="CON">CON</option>
-                          <option value="CPRT">CPRT</option>
-                          <option value="CRT">CRT</option>
-                          <option value="CMLS">CMLS</option>
-                          <option value="COP">COP</option>
+                          <option value="CCSE">CCSE (College of Computer Studies and Engineering)</option>
+                          <option value="COPSY">COPSY (College of Psychology)</option>
+                          <option value="COB">COB (College of Business)</option>
+                          <option value="CON">CON (College of Nursing)</option>
+                          <option value="CMLS">CMLS (College of Medical Laboratory Sciences)</option>
+                          <option value="CORT">CORT (College of Respiratory Therapy)</option>
+                          <option value="COP">COP (College of Pharmacy)</option>
+                          <option value="CPT">CPT (College of Physical Therapy)</option>
+                          <option value="CRT">CRT (College of Radiologic Technology)</option>
+                          <option value="CIE">CIE (College of Inclusive Education)</option>
                         </select>
                       </div>
                       <div class="mb-3">
                         <label for="editQuantity" class="form-label">Quantity</label>
                         <input type="number" class="form-control" id="editQuantity" min="1">
-                        <small class="form-text text-muted">You can add more tickets but cannot reduce existing ones</small>
+                        <small class="form-text text-muted">You can add more tickets but cannot reduce existing
+                          ones</small>
                       </div>
                     </div>
                     <div class="modal-footer">
@@ -310,7 +317,8 @@
                     <div style="font-size: 3rem; margin-bottom: 1rem;">🗑️</div>
                     <div id="deleteModalContent">
                       <p class="fw-bold fs-5 mb-2">Are you sure you want to delete this entry?</p>
-                      <p class="text-muted mb-0">This action is permanent for your account.Only an administrator can restore this item.</p>
+                      <p class="text-muted mb-0">This action is permanent for your account.Only an administrator can
+                        restore this item.</p>
                     </div>
                   </div>
                   <div class="modal-footer justify-content-center">
