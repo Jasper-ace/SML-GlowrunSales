@@ -65,7 +65,7 @@ const EARLY_BIRD_LIMIT = 56;
 function getTicketPrice() {
   // Count total sold tickets (not entries, since each entry = 1 ticket)
   const soldTicketsCount = entries.length;
-  
+
   if (soldTicketsCount < EARLY_BIRD_LIMIT) {
     return EARLY_BIRD_PRICE;
   }
@@ -188,7 +188,7 @@ document.addEventListener("DOMContentLoaded", () => {
   if (filterDepartment) filterDepartment.addEventListener("change", renderTable);
   if (editForm) editForm.addEventListener("submit", handleSaveEdit);
   if (confirmDeleteBtn) confirmDeleteBtn.addEventListener("click", confirmDeleteHandler);
-  
+
   // Add real-time validation for School ID in add form
   const schoolIdInput = document.getElementById("schoolId");
   if (schoolIdInput) {
@@ -234,12 +234,12 @@ function loadEntries() {
 function updatePricingInfo() {
   const pricingInfoEl = document.getElementById("pricingInfo");
   if (!pricingInfoEl) return;
-  
+
   const currentTicketCount = entries.length;
   const remainingEarlyBird = Math.max(0, EARLY_BIRD_LIMIT - currentTicketCount);
-  
+
   let infoHTML = "";
-  
+
   if (remainingEarlyBird > 0) {
     infoHTML = `
       <div class="alert alert-info py-2 mb-0">
@@ -256,7 +256,7 @@ function updatePricingInfo() {
       </div>
     `;
   }
-  
+
   pricingInfoEl.innerHTML = infoHTML;
 }
 
@@ -265,23 +265,23 @@ function handleQuantityChange() {
   const quantityInput = document.getElementById("quantity");
   const container = document.getElementById("ticketNumbersContainer");
   const fieldsContainer = document.getElementById("ticketNumberFields");
-  
+
   if (!quantityInput || !container || !fieldsContainer) return;
-  
+
   const quantity = parseInt(quantityInput.value) || 0;
-  
+
   if (quantity > 0) {
     // Show the container
     container.style.display = "block";
-    
+
     // Clear existing fields
     fieldsContainer.innerHTML = "";
-    
+
     // Create ticket number inputs
     for (let i = 1; i <= quantity; i++) {
       const ticketDiv = document.createElement("div");
       ticketDiv.className = "mb-2";
-      
+
       ticketDiv.innerHTML = `
         <div class="input-group">
           <span class="input-group-text">Ticket ${i}</span>
@@ -293,9 +293,9 @@ function handleQuantityChange() {
                  required>
         </div>
       `;
-      
+
       fieldsContainer.appendChild(ticketDiv);
-      
+
       // Add validation to each ticket number input
       const input = ticketDiv.querySelector(`#ticketNumber${i}`);
       input.addEventListener("input", validateAllTicketNumbers);
@@ -311,11 +311,11 @@ function handleQuantityChange() {
 function validateAllTicketNumbers() {
   const ticketInputs = document.querySelectorAll(".ticket-number-input");
   const submitButton = studentForm?.querySelector('button[type="submit"]');
-  
+
   let hasError = false;
   let errorMessages = [];
   const ticketNumbers = [];
-  
+
   // Clear previous error styles
   ticketInputs.forEach(input => {
     input.style.borderColor = "";
@@ -323,34 +323,34 @@ function validateAllTicketNumbers() {
     const warningMsg = input.parentElement.parentElement.querySelector(".duplicate-warning");
     if (warningMsg) warningMsg.remove();
   });
-  
+
   // Validate each ticket number
   ticketInputs.forEach((input, index) => {
     let value = input.value;
-    
+
     // Remove any non-digit characters
     value = value.replace(/\D/g, '');
-    
+
     // Limit to exactly 4 digits
     if (value.length > 4) {
       value = value.slice(0, 4);
     }
-    
+
     // Update the input value immediately
     input.value = value;
-    
+
     if (!value) return; // Skip empty fields
-    
+
     // Pad to 4 digits for validation
     const paddedValue = value.padStart(4, '0');
     const numValue = parseInt(paddedValue, 10);
-    
+
     // Check range (0001-9999)
     if (numValue < 1 || numValue > 9999) {
       hasError = true;
       input.style.borderColor = "#ef4444";
       input.style.backgroundColor = "#fee2e2";
-      
+
       const warningMsg = document.createElement("small");
       warningMsg.className = "duplicate-warning text-danger d-block mt-1";
       warningMsg.style.fontWeight = "600";
@@ -358,14 +358,14 @@ function validateAllTicketNumbers() {
       input.parentElement.parentElement.appendChild(warningMsg);
       return;
     }
-    
+
     // Check for duplicates in existing entries
     const isDuplicateInDB = entries.some(en => safeStr(en.ticketNumber) === paddedValue);
     if (isDuplicateInDB) {
       hasError = true;
       input.style.borderColor = "#ef4444";
       input.style.backgroundColor = "#fee2e2";
-      
+
       const warningMsg = document.createElement("small");
       warningMsg.className = "duplicate-warning text-danger d-block mt-1";
       warningMsg.style.fontWeight = "600";
@@ -373,13 +373,13 @@ function validateAllTicketNumbers() {
       input.parentElement.parentElement.appendChild(warningMsg);
       return;
     }
-    
+
     // Check for duplicates within current form
     if (ticketNumbers.includes(paddedValue)) {
       hasError = true;
       input.style.borderColor = "#ef4444";
       input.style.backgroundColor = "#fee2e2";
-      
+
       const warningMsg = document.createElement("small");
       warningMsg.className = "duplicate-warning text-danger d-block mt-1";
       warningMsg.style.fontWeight = "600";
@@ -387,25 +387,25 @@ function validateAllTicketNumbers() {
       input.parentElement.parentElement.appendChild(warningMsg);
       return;
     }
-    
+
     ticketNumbers.push(paddedValue);
   });
-  
+
   // Check if all required fields are filled
   const allFilled = Array.from(ticketInputs).every(input => input.value.trim() !== "");
   if (!allFilled && ticketInputs.length > 0) {
     hasError = true;
   }
-  
+
   // Enable/disable submit button
   if (submitButton) {
     // Also check if School ID is valid
     const schoolIdInput = document.getElementById("schoolId");
     const schoolIdVal = safeStr(schoolIdInput?.value).trim().toLowerCase();
-    const schoolIdDuplicate = entries.some(en => 
+    const schoolIdDuplicate = entries.some(en =>
       safeStr(en.schoolId).trim().toLowerCase() === schoolIdVal
     );
-    
+
     if (hasError || schoolIdDuplicate || !allFilled) {
       submitButton.disabled = true;
       submitButton.style.opacity = "0.5";
@@ -425,20 +425,20 @@ function validateAllTicketNumbers() {
 function validateSchoolIdInput() {
   const schoolIdInput = document.getElementById("schoolId");
   if (!schoolIdInput) return;
-  
+
   const schoolIdVal = safeStr(schoolIdInput.value).trim().toLowerCase();
-  const isDuplicate = entries.some(en => 
+  const isDuplicate = entries.some(en =>
     safeStr(en.schoolId).trim().toLowerCase() === schoolIdVal
   );
-  
+
   // Get the submit button
   const submitButton = studentForm?.querySelector('button[type="submit"]');
-  
+
   if (isDuplicate && schoolIdVal !== "") {
     schoolIdInput.style.borderColor = "#ef4444";
     schoolIdInput.style.borderWidth = "2px";
     schoolIdInput.style.backgroundColor = "#fee2e2";
-    
+
     // Add or update warning message
     let warningMsg = schoolIdInput.parentElement.querySelector(".duplicate-warning");
     if (!warningMsg) {
@@ -448,7 +448,7 @@ function validateSchoolIdInput() {
       schoolIdInput.parentElement.appendChild(warningMsg);
     }
     warningMsg.textContent = "⚠️ This ID Number already exists!";
-    
+
     // Disable submit button
     if (submitButton) {
       submitButton.disabled = true;
@@ -462,16 +462,16 @@ function validateSchoolIdInput() {
     schoolIdInput.style.backgroundColor = "";
     const warningMsg = schoolIdInput.parentElement.querySelector(".duplicate-warning");
     if (warningMsg) warningMsg.remove();
-    
+
     // Enable submit button (but check if Ticket Number is also valid)
     const ticketNumberInput = document.getElementById("ticketNumber");
     const ticketVal = ticketNumberInput?.value;
     const ticketNumValue = parseInt(ticketVal, 10);
     const formattedTicketValue = ticketVal ? String(ticketNumValue).padStart(4, '0') : '';
-    const ticketDuplicate = ticketVal && entries.some(en => 
+    const ticketDuplicate = ticketVal && entries.some(en =>
       safeStr(en.ticketNumber) === formattedTicketValue
     );
-    
+
     if (submitButton && !ticketDuplicate) {
       submitButton.disabled = false;
       submitButton.style.opacity = "";
@@ -503,9 +503,8 @@ async function handleAddEntry(e) {
   const yrlvl = safeStr(document.getElementById("yrlvl")?.value).trim();
   const department = safeStr(document.getElementById("department")?.value).trim();
   const quantityRaw = document.getElementById("quantity")?.value;
-  const quantity = toNumberSafe(quantityRaw, NaN);
-  const soldStatusInput = document.getElementById("soldStatus");
-  const soldStatus = soldStatusInput ? safeStr(soldStatusInput.value) : "available";
+  const quantity = parseInt(quantityRaw, 10);
+  const soldStatus = "sold";
 
   if (Number.isNaN(quantity) || quantity < 1) {
     showToast("Quantity must be a valid positive number", "warning");
@@ -515,40 +514,40 @@ async function handleAddEntry(e) {
   // Get all ticket numbers from the dynamic fields
   const ticketInputs = document.querySelectorAll(".ticket-number-input");
   const ticketNumbers = [];
-  
+
   for (let i = 0; i < ticketInputs.length; i++) {
     const input = ticketInputs[i];
     let value = input.value.trim();
-    
+
     // Remove any non-digit characters and limit to 4 digits
     value = value.replace(/\D/g, '').slice(0, 4);
-    
+
     if (!value) {
       showToast(`Please enter ticket number ${i + 1}`, "warning");
       return;
     }
-    
+
     const numValue = parseInt(value, 10);
     if (Number.isNaN(numValue) || numValue < 1 || numValue > 9999) {
       showToast(`Ticket ${i + 1} must be between 0001 and 9999`, "warning");
       return;
     }
-    
+
     const formattedTicketNumber = String(numValue).padStart(4, '0');
-    
+
     // Check for duplicate ticket number in database
     const ticketDup = entries.find(en => safeStr(en.ticketNumber) === formattedTicketNumber);
     if (ticketDup) {
       showToast(`Ticket Number ${formattedTicketNumber} already exists`, "warning");
       return;
     }
-    
+
     // Check for duplicates within the form
     if (ticketNumbers.includes(formattedTicketNumber)) {
       showToast(`Duplicate ticket number ${formattedTicketNumber} in form`, "warning");
       return;
     }
-    
+
     ticketNumbers.push(formattedTicketNumber);
   }
 
@@ -561,11 +560,12 @@ async function handleAddEntry(e) {
   // Create entries for each ticket
   const entriesToAdd = [];
   const currentTicketCount = entries.length; // Current number of tickets sold
-  
+  const batchId = `${schoolIdVal}_${Date.now()}`; // FIX: Generate ID once for the whole batch
+
   for (let i = 0; i < quantity; i++) {
     const ticketSequenceNumber = currentTicketCount + i; // Position in the overall sequence
     const ticketPrice = getPriceForTicketSequence(ticketSequenceNumber);
-    
+
     const entry = {
       schoolId: schoolIdVal,
       ticketNumber: ticketNumbers[i],
@@ -578,11 +578,11 @@ async function handleAddEntry(e) {
       isEarlyBird: ticketSequenceNumber < EARLY_BIRD_LIMIT,
       ticketSequenceNumber: ticketSequenceNumber + 1, // 1-based numbering for display
       soldStatus: soldStatus,
-      soldAt: soldStatus === "sold" ? new Date().toISOString() : null,
+      soldAt: new Date().toISOString(), // Always sold per policy
       createdAt: new Date().toISOString(),
       soldBy: currentUser?.email || "Unknown",
       soldByName: currentUser?.displayName || currentUser?.email || "Unknown",
-      batchId: `${schoolIdVal}_${Date.now()}`, // Group tickets from same purchase
+      batchId: batchId, // Group tickets from same purchase
       ticketIndex: i + 1, // Which ticket in the batch (1, 2, 3, etc.)
       totalTicketsInBatch: quantity
     };
@@ -593,14 +593,14 @@ async function handleAddEntry(e) {
     // Add all entries to Firestore
     const addPromises = entriesToAdd.map(entry => addDoc(collection(db, "entries"), entry));
     await Promise.all(addPromises);
-    
+
     await loadEntries();
     studentForm.reset();
-    
+
     // Hide the ticket numbers container
     const container = document.getElementById("ticketNumbersContainer");
     if (container) container.style.display = "none";
-    
+
     // Clear the red border after successful submission
     const schoolIdInput = document.getElementById("schoolId");
     if (schoolIdInput) {
@@ -610,7 +610,7 @@ async function handleAddEntry(e) {
       const warningMsg = schoolIdInput.parentElement.querySelector(".duplicate-warning");
       if (warningMsg) warningMsg.remove();
     }
-    
+
     const ticketList = ticketNumbers.join(", ");
     showToast(`${quantity} ticket(s) added successfully! Ticket numbers: ${ticketList}`, "success");
   } catch (err) {
@@ -627,7 +627,7 @@ async function handleSaveEdit(e) {
   if (batchEntries.length === 0) return showToast("No entries to edit", "warning");
 
   const newQuantity = parseInt(document.getElementById("editQuantity")?.value) || batchEntries.length;
-  
+
   // Prevent reducing ticket count
   if (newQuantity < batchEntries.length) {
     showToast(`Cannot reduce tickets below ${batchEntries.length}. You can only add more tickets.`, "warning");
@@ -638,8 +638,8 @@ async function handleSaveEdit(e) {
   if (!updatedSchoolId) return showToast("School ID is required", "warning");
 
   // Check for duplicate school ID (excluding current batch)
-  const dup = entries.find(en => 
-    !batchEntries.some(be => be.id === en.id) && 
+  const dup = entries.find(en =>
+    !batchEntries.some(be => be.id === en.id) &&
     safeStr(en.schoolId).trim().toLowerCase() === updatedSchoolId.toLowerCase()
   );
   if (dup) {
@@ -651,46 +651,45 @@ async function handleSaveEdit(e) {
   const updatedLastname = safeStr(document.getElementById("editLastname")?.value).trim();
   const updatedYrlvl = safeStr(document.getElementById("editYrlvl")?.value).trim();
   const updatedDepartment = safeStr(document.getElementById("editDepartment")?.value).trim();
-  const updatedSoldStatusInput = document.getElementById("editSoldStatus");
-  const updatedSoldStatus = updatedSoldStatusInput ? safeStr(updatedSoldStatusInput.value) : "available";
+  const updatedSoldStatus = "sold";
 
   // Get all ticket numbers from the edit form
   const ticketInputs = document.querySelectorAll(".edit-ticket-number-input");
   const updatedTicketNumbers = [];
-  
+
   for (let i = 0; i < ticketInputs.length; i++) {
     const input = ticketInputs[i];
     const value = input.value.trim();
-    
+
     if (!value) {
       showToast(`Please enter ticket number ${i + 1}`, "warning");
       return;
     }
-    
+
     const numValue = parseInt(value, 10);
     if (Number.isNaN(numValue) || numValue < 1 || numValue > 9999) {
       showToast(`Ticket ${i + 1} must be between 1 and 9999`, "warning");
       return;
     }
-    
+
     const formattedTicketNumber = String(numValue).padStart(4, '0');
-    
+
     // Check for duplicate ticket number (excluding current batch)
-    const ticketDup = entries.find(en => 
-      !batchEntries.some(be => be.id === en.id) && 
+    const ticketDup = entries.find(en =>
+      !batchEntries.some(be => be.id === en.id) &&
       safeStr(en.ticketNumber) === formattedTicketNumber
     );
     if (ticketDup) {
       showToast(`Ticket Number ${formattedTicketNumber} already exists`, "warning");
       return;
     }
-    
+
     // Check for duplicates within the form
     if (updatedTicketNumbers.includes(formattedTicketNumber)) {
       showToast(`Duplicate ticket number ${formattedTicketNumber} in form`, "warning");
       return;
     }
-    
+
     updatedTicketNumbers.push(formattedTicketNumber);
   }
 
@@ -703,8 +702,8 @@ async function handleSaveEdit(e) {
   try {
     const updatePromises = [];
     const newEntryPromises = [];
-    
-    // Update existing entries
+
+    // Update existing entries (keep their original prices and early bird status)
     for (let i = 0; i < batchEntries.length; i++) {
       const updated = {
         schoolId: updatedSchoolId,
@@ -714,17 +713,25 @@ async function handleSaveEdit(e) {
         yrlvl: updatedYrlvl,
         department: updatedDepartment,
         quantity: 1, // Each entry represents 1 ticket
-        unitPrice: UNIT_PRICE,
+        // Keep original price and early bird status for existing tickets
+        unitPrice: batchEntries[i].unitPrice,
+        isEarlyBird: batchEntries[i].isEarlyBird,
         soldStatus: updatedSoldStatus,
-        soldAt: updatedSoldStatus === "sold" ? (batchEntries[i].soldAt || new Date().toISOString()) : null,
+        soldAt: batchEntries[i].soldAt || new Date().toISOString(), // Keep original date or set new if missing
         updatedAt: new Date().toISOString()
       };
-      
+
       updatePromises.push(updateDoc(doc(db, "entries", batchEntries[i].id), updated));
     }
-    
-    // Create new entries for additional tickets
+
+    // Create new entries for additional tickets (use current pricing logic)
+    const currentTicketCount = entries.length; // Total tickets in system
+
     for (let i = batchEntries.length; i < newQuantity; i++) {
+      // Calculate the sequence number for this new ticket
+      const ticketSequenceNumber = currentTicketCount + (i - batchEntries.length);
+      const ticketPrice = getPriceForTicketSequence(ticketSequenceNumber);
+
       const newEntry = {
         schoolId: updatedSchoolId,
         ticketNumber: updatedTicketNumbers[i],
@@ -733,32 +740,34 @@ async function handleSaveEdit(e) {
         yrlvl: updatedYrlvl,
         department: updatedDepartment,
         quantity: 1, // Each entry represents 1 ticket
-        unitPrice: UNIT_PRICE,
+        unitPrice: ticketPrice,
+        isEarlyBird: ticketSequenceNumber < EARLY_BIRD_LIMIT,
         soldStatus: updatedSoldStatus,
-        soldAt: updatedSoldStatus === "sold" ? new Date().toISOString() : null,
+        soldAt: new Date().toISOString(), // Always sold per policy
         createdAt: new Date().toISOString(),
         soldBy: currentUser?.email || "Unknown",
         soldByName: currentUser?.displayName || currentUser?.email || "Unknown",
         batchId: batchEntries[0].batchId || `${updatedSchoolId}_${Date.now()}`,
         ticketIndex: i + 1,
-        totalTicketsInBatch: newQuantity
+        totalTicketsInBatch: newQuantity,
+        ticketSequenceNumber: ticketSequenceNumber + 1 // 1-based numbering for display
       };
-      
+
       newEntryPromises.push(addDoc(collection(db, "entries"), newEntry));
     }
-    
+
     // Execute all updates and additions
     await Promise.all([...updatePromises, ...newEntryPromises]);
-    
+
     await loadEntries();
     if (editModal) editModal.hide();
-    
+
     const ticketList = updatedTicketNumbers.join(", ");
     const addedCount = newQuantity - batchEntries.length;
-    const message = addedCount > 0 
+    const message = addedCount > 0
       ? `${batchEntries.length} ticket(s) updated and ${addedCount} new ticket(s) added! All ticket numbers: ${ticketList}`
       : `${batchEntries.length} ticket(s) updated successfully! Ticket numbers: ${ticketList}`;
-    
+
     showToast(message, "success");
   } catch (err) {
     console.error("Update failed:", err);
@@ -771,7 +780,7 @@ async function handleSaveEdit(e) {
 
 async function confirmDeleteHandler() {
   if (!deleteId) return;
-  
+
   const batchEntries = window.deletingBatch || [];
   if (batchEntries.length === 0) {
     showToast("No entries to delete", "warning");
@@ -780,12 +789,12 @@ async function confirmDeleteHandler() {
 
   try {
     const deletePromises = [];
-    
+
     // Create a single grouped deleted entry for the batch
     const firstEntry = batchEntries[0];
     const totalPrice = batchEntries.reduce((sum, e) => sum + toNumberSafe(e.unitPrice, 0), 0);
     const ticketNumbers = batchEntries.map(e => safeStr(e.ticketNumber)).join(", ");
-    
+
     const groupedDeletedEntry = {
       // Use first entry's basic info
       schoolId: safeStr(firstEntry.schoolId),
@@ -793,13 +802,13 @@ async function confirmDeleteHandler() {
       lastname: safeStr(firstEntry.lastname),
       yrlvl: safeStr(firstEntry.yrlvl),
       department: safeStr(firstEntry.department),
-      
+
       // Batch information
       quantity: batchEntries.length,
       ticketNumbers: ticketNumbers, // All ticket numbers as comma-separated string
       unitPrice: batchEntries.length === 1 ? toNumberSafe(firstEntry.unitPrice, UNIT_PRICE) : "Mixed", // Show "Mixed" if different prices
       totalPrice: totalPrice,
-      
+
       // Metadata
       batchId: safeStr(firstEntry.batchId) || `${safeStr(firstEntry.schoolId)}_${Date.now()}`,
       originalIds: batchEntries.map(e => safeStr(e.id)), // Store all original IDs
@@ -809,7 +818,7 @@ async function confirmDeleteHandler() {
       createdAt: safeStr(firstEntry.createdAt) || new Date().toISOString(),
       soldBy: safeStr(firstEntry.soldBy) || "Unknown",
       soldByName: safeStr(firstEntry.soldByName) || safeStr(firstEntry.soldBy) || "Unknown",
-      
+
       // Individual ticket details (for restore functionality)
       ticketDetails: batchEntries.map(entry => ({
         id: safeStr(entry.id),
@@ -823,7 +832,7 @@ async function confirmDeleteHandler() {
     // Save as single grouped entry in deletedEntries
     const batchDeleteId = firstEntry.batchId || `batch_${Date.now()}`;
     await setDoc(doc(db, "deletedEntries", batchDeleteId), groupedDeletedEntry);
-    
+
     // Delete all individual entries from main collection
     for (const entry of batchEntries) {
       deletePromises.push(deleteDoc(doc(db, "entries", entry.id)));
@@ -831,13 +840,13 @@ async function confirmDeleteHandler() {
 
     // Execute all deletions
     await Promise.all(deletePromises);
-    
+
     if (deleteModal) deleteModal.hide();
-    
-    const message = batchEntries.length === 1 
+
+    const message = batchEntries.length === 1
       ? "Ticket deleted successfully"
       : `${batchEntries.length} tickets deleted successfully`;
-    
+
     showToast(message, "success");
   } catch (err) {
     console.error("Delete failed:", err);
@@ -852,16 +861,16 @@ async function confirmDeleteHandler() {
 function updateEditTicketFields(batchEntries, newQuantity = null) {
   const container = document.getElementById("editTicketNumbersContainer");
   const currentQuantity = newQuantity || batchEntries.length;
-  
+
   container.innerHTML = "";
 
   // Create inputs for existing tickets
   batchEntries.forEach((ticketEntry, index) => {
     const ticketDiv = document.createElement("div");
     ticketDiv.className = "mb-2";
-    
+
     const ticketNumValue = ticketEntry.ticketNumber || "";
-    
+
     ticketDiv.innerHTML = `
       <div class="input-group">
         <span class="input-group-text">Ticket ${index + 1}</span>
@@ -876,9 +885,9 @@ function updateEditTicketFields(batchEntries, newQuantity = null) {
                required>
       </div>
     `;
-    
+
     container.appendChild(ticketDiv);
-    
+
     // Add validation to each ticket number input
     const input = ticketDiv.querySelector(`#editTicketNumber${index + 1}`);
     input.addEventListener("input", validateEditTicketNumbers);
@@ -888,7 +897,7 @@ function updateEditTicketFields(batchEntries, newQuantity = null) {
   for (let i = batchEntries.length; i < currentQuantity; i++) {
     const ticketDiv = document.createElement("div");
     ticketDiv.className = "mb-2";
-    
+
     ticketDiv.innerHTML = `
       <div class="input-group">
         <span class="input-group-text">Ticket ${i + 1} <span class="badge bg-success ms-1">NEW</span></span>
@@ -902,9 +911,9 @@ function updateEditTicketFields(batchEntries, newQuantity = null) {
                required>
       </div>
     `;
-    
+
     container.appendChild(ticketDiv);
-    
+
     // Add validation to each ticket number input
     const input = ticketDiv.querySelector(`#editTicketNumber${i + 1}`);
     input.addEventListener("input", validateEditTicketNumbers);
@@ -915,11 +924,11 @@ function updateEditTicketFields(batchEntries, newQuantity = null) {
 function validateEditTicketNumbers() {
   const ticketInputs = document.querySelectorAll(".edit-ticket-number-input");
   const submitButton = document.querySelector("#editForm button[type='submit']");
-  
+
   let hasError = false;
   const ticketNumbers = [];
   const batchEntries = window.editingBatch || [];
-  
+
   // Clear previous error styles
   ticketInputs.forEach(input => {
     input.style.borderColor = "";
@@ -927,37 +936,37 @@ function validateEditTicketNumbers() {
     const warningMsg = input.parentElement.parentElement.querySelector(".duplicate-warning");
     if (warningMsg) warningMsg.remove();
   });
-  
+
   // Validate each ticket number
   ticketInputs.forEach((input, index) => {
     let value = input.value;
-    
+
     // Remove any non-digit characters
     value = value.replace(/\D/g, '');
-    
+
     // Limit to exactly 4 digits
     if (value.length > 4) {
       value = value.slice(0, 4);
     }
-    
+
     // Update the input value immediately
     input.value = value;
-    
+
     if (!value) {
       hasError = true;
       return;
     }
-    
+
     // Pad to 4 digits for validation
     const paddedValue = value.padStart(4, '0');
     const numValue = parseInt(paddedValue, 10);
-    
+
     // Check range (0001-9999)
     if (numValue < 1 || numValue > 9999) {
       hasError = true;
       input.style.borderColor = "#ef4444";
       input.style.backgroundColor = "#fee2e2";
-      
+
       const warningMsg = document.createElement("small");
       warningMsg.className = "duplicate-warning text-danger d-block mt-1";
       warningMsg.style.fontWeight = "600";
@@ -965,20 +974,20 @@ function validateEditTicketNumbers() {
       input.parentElement.parentElement.appendChild(warningMsg);
       return;
     }
-    
+
     const originalId = input.getAttribute('data-original-id');
-    
+
     // Check for duplicates in existing entries (excluding current batch)
-    const isDuplicateInDB = entries.some(en => 
-      !batchEntries.some(be => be.id === en.id) && 
+    const isDuplicateInDB = entries.some(en =>
+      !batchEntries.some(be => be.id === en.id) &&
       safeStr(en.ticketNumber) === paddedValue
     );
-    
+
     if (isDuplicateInDB) {
       hasError = true;
       input.style.borderColor = "#ef4444";
       input.style.backgroundColor = "#fee2e2";
-      
+
       const warningMsg = document.createElement("small");
       warningMsg.className = "duplicate-warning text-danger d-block mt-1";
       warningMsg.style.fontWeight = "600";
@@ -986,13 +995,13 @@ function validateEditTicketNumbers() {
       input.parentElement.parentElement.appendChild(warningMsg);
       return;
     }
-    
+
     // Check for duplicates within current form
     if (ticketNumbers.includes(paddedValue)) {
       hasError = true;
       input.style.borderColor = "#ef4444";
       input.style.backgroundColor = "#fee2e2";
-      
+
       const warningMsg = document.createElement("small");
       warningMsg.className = "duplicate-warning text-danger d-block mt-1";
       warningMsg.style.fontWeight = "600";
@@ -1000,20 +1009,20 @@ function validateEditTicketNumbers() {
       input.parentElement.parentElement.appendChild(warningMsg);
       return;
     }
-    
+
     ticketNumbers.push(paddedValue);
   });
-  
+
   // Enable/disable submit button
   if (submitButton) {
     // Also check if School ID is valid
     const schoolIdInput = document.getElementById("editSchoolId");
     const schoolIdVal = safeStr(schoolIdInput?.value).trim().toLowerCase();
-    const schoolIdDuplicate = entries.some(en => 
-      !batchEntries.some(be => be.id === en.id) && 
+    const schoolIdDuplicate = entries.some(en =>
+      !batchEntries.some(be => be.id === en.id) &&
       safeStr(en.schoolId).trim().toLowerCase() === schoolIdVal
     );
-    
+
     if (hasError || schoolIdDuplicate) {
       submitButton.disabled = true;
       submitButton.style.opacity = "0.5";
@@ -1063,11 +1072,11 @@ function openEditModal(id) {
   document.getElementById("editLastname").value = safeStr(entry.lastname);
   document.getElementById("editYrlvl").value = safeStr(entry.yrlvl);
   document.getElementById("editDepartment").value = safeStr(entry.department);
-  
+
   const editQuantityInput = document.getElementById("editQuantity");
   editQuantityInput.value = batchEntries.length;
   editQuantityInput.min = batchEntries.length; // Cannot go below current number
-  
+
   const editSoldStatusInput = document.getElementById("editSoldStatus");
   if (editSoldStatusInput) {
     editSoldStatusInput.value = safeStr(entry.soldStatus) || "available";
@@ -1089,18 +1098,18 @@ function openEditModal(id) {
 
   // Add real-time validation for School ID
   const saveButton = document.querySelector("#editForm button[type='submit']");
-  
+
   const validateSchoolId = () => {
     const currentValue = safeStr(editSchoolIdInput.value).trim().toLowerCase();
-    const isDuplicate = entries.some(en => 
-      !batchEntries.some(be => be.id === en.id) && 
+    const isDuplicate = entries.some(en =>
+      !batchEntries.some(be => be.id === en.id) &&
       safeStr(en.schoolId).trim().toLowerCase() === currentValue
     );
-    
+
     if (isDuplicate && currentValue !== "") {
       editSchoolIdInput.style.borderColor = "#ef4444";
       editSchoolIdInput.style.backgroundColor = "#fee2e2";
-      
+
       // Add or update warning message
       let warningMsg = editSchoolIdInput.parentElement.querySelector(".duplicate-warning");
       if (!warningMsg) {
@@ -1110,7 +1119,7 @@ function openEditModal(id) {
         editSchoolIdInput.parentElement.appendChild(warningMsg);
       }
       warningMsg.textContent = "⚠️ This School ID already exists!";
-      
+
       // Disable save button
       if (saveButton) {
         saveButton.disabled = true;
@@ -1123,7 +1132,7 @@ function openEditModal(id) {
       editSchoolIdInput.style.backgroundColor = "";
       const warningMsg = editSchoolIdInput.parentElement.querySelector(".duplicate-warning");
       if (warningMsg) warningMsg.remove();
-      
+
       validateEditTicketNumbers(); // Revalidate tickets
     }
   };
@@ -1165,7 +1174,7 @@ function openViewTicketsModal(id) {
   const modalContent = document.getElementById("viewTicketsContent");
   if (modalContent) {
     const totalPrice = batchEntries.reduce((sum, e) => sum + toNumberSafe(e.unitPrice, 0), 0);
-    
+
     modalContent.innerHTML = `
       <div class="mb-4">
         <h6 class="fw-bold mb-3">Purchase Details</h6>
@@ -1186,11 +1195,11 @@ function openViewTicketsModal(id) {
       <h6 class="fw-bold mb-3">Ticket Numbers</h6>
       <div class="row g-2">
         ${batchEntries.map(ticketEntry => {
-          const earlyBirdBadge = ticketEntry.isEarlyBird 
-            ? '<span class="badge bg-success ms-2" style="font-size: 0.7rem;">Early Bird</span>' 
-            : '<span class="badge bg-secondary ms-2" style="font-size: 0.7rem;">Regular</span>';
-          
-          return `
+      const earlyBirdBadge = ticketEntry.isEarlyBird
+        ? '<span class="badge bg-success ms-2" style="font-size: 0.7rem;">Early Bird</span>'
+        : '<span class="badge bg-secondary ms-2" style="font-size: 0.7rem;">Regular</span>';
+
+      return `
             <div class="col-md-6 col-lg-4">
               <div class="card border-0 shadow-sm">
                 <div class="card-body py-2 px-3">
@@ -1203,7 +1212,7 @@ function openViewTicketsModal(id) {
               </div>
             </div>
           `;
-        }).join('')}
+    }).join('')}
       </div>
     `;
   }
@@ -1213,7 +1222,7 @@ function openViewTicketsModal(id) {
 
 function openDeleteModal(id) {
   deleteId = id;
-  
+
   // Find the entry and its batch
   const entry = entries.find(e => e.id === id);
   if (!entry) return;
@@ -1255,7 +1264,7 @@ function openDeleteModal(id) {
     } else {
       const ticketNumbers = batchEntries.map(e => safeStr(e.ticketNumber)).join(", ");
       const totalPrice = batchEntries.reduce((sum, e) => sum + toNumberSafe(e.unitPrice, 0), 0);
-      
+
       modalContent.innerHTML = `
         <p class="fw-bold fs-5 mb-2">Delete Entire Purchase?</p>
         <div class="alert alert-warning">
@@ -1298,7 +1307,8 @@ function renderTable() {
     const ticketNum = safeStr(entry.ticketNumber).toLowerCase();
     const name = safeStr(entry.name).toLowerCase();
     const lastname = safeStr(entry.lastname).toLowerCase();
-    const matchesSearch = sid.includes(searchVal) || ticketNum.includes(searchVal) || name.includes(searchVal) || lastname.includes(searchVal);
+    const fullname = `${name} ${lastname}`;
+    const matchesSearch = sid.includes(searchVal) || ticketNum.includes(searchVal) || name.includes(searchVal) || lastname.includes(searchVal) || fullname.includes(searchVal);
     const matchesDept = deptVal === "" || safeStr(entry.department) === deptVal;
 
     // ✅ Date filter
@@ -1319,7 +1329,7 @@ function renderTable() {
   filteredEntries.sort((a, b) => {
     const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
     const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
-    return dateA - dateB; // Ascending order (oldest first - first come first serve)
+    return dateB - dateA; // Descending order (newest first)
   });
 
   if (filteredEntries.length === 0) {
@@ -1338,7 +1348,7 @@ function renderTable() {
   const groupedEntries = {};
   filteredEntries.forEach(entry => {
     let groupKey;
-    
+
     if (entry.batchId) {
       // New entries with batchId
       groupKey = entry.batchId;
@@ -1348,7 +1358,7 @@ function renderTable() {
       const roundedTimestamp = Math.floor(timestamp / 60000) * 60000; // Group within same minute
       groupKey = `${entry.schoolId}_${roundedTimestamp}`;
     }
-    
+
     if (!groupedEntries[groupKey]) {
       groupedEntries[groupKey] = [];
     }
@@ -1370,7 +1380,7 @@ function renderTable() {
 
     const firstEntry = batch[0];
     const totalQuantity = batch.length;
-    
+
     // Calculate total price (may have mixed pricing)
     const totalPrice = batch.reduce((sum, entry) => {
       const unitPrice = toNumberSafe(entry.unitPrice, UNIT_PRICE);
@@ -1389,14 +1399,14 @@ function renderTable() {
     let ticketNumberDisplay;
     if (batch.length === 1) {
       // Single ticket - just show the number with early bird indicator
-      const earlyBirdBadge = firstEntry.isEarlyBird 
-        ? ' <span class="badge bg-info">EARLY BIRD</span>' 
+      const earlyBirdBadge = firstEntry.isEarlyBird
+        ? ' <span class="badge bg-info">EARLY BIRD</span>'
         : '';
       ticketNumberDisplay = safeStr(firstEntry.ticketNumber) + earlyBirdBadge;
     } else {
       // Multiple tickets - show "View Tickets" button
       const earlyBirdCount = batch.filter(entry => entry.isEarlyBird).length;
-      
+
       let earlyBirdText = "";
       if (earlyBirdCount > 0) {
         if (earlyBirdCount === batch.length) {
@@ -1405,7 +1415,7 @@ function renderTable() {
           earlyBirdText = ` <span class="badge bg-info">${earlyBirdCount} EARLY BIRD</span>`;
         }
       }
-      
+
       ticketNumberDisplay = `
         <button class="btn btn-sm btn-primary view-tickets-btn" data-id="${firstEntry.id}" style="background: #7c3aed; border: none; padding: 4px 8px; border-radius: 12px; font-size: 0.8rem;">
           View ${batch.length} tickets
@@ -1491,7 +1501,7 @@ function trackUserOnline(user) {
   if (!user) return;
 
   const userDocRef = doc(db, "onlineUsers", user.uid);
-  
+
   // Update user status every 30 seconds
   const updateStatus = async () => {
     try {
@@ -1533,7 +1543,7 @@ function showAdminLink() {
     adminLink.id = "adminLink";
     adminLink.href = "admin.html";
     adminLink.className = "btn btn-outline-primary btn-sm me-2";
-    adminLink.innerHTML = "👑 Admin";
+    adminLink.innerHTML = "Super Admin";
     adminLink.style.marginRight = "1rem";
     userProfile.parentElement.insertBefore(adminLink, userProfile);
   }
