@@ -57,7 +57,7 @@ const adminEmails = [
 ];
 
 // --------------------- Helpers ---------------------
-const UNIT_PRICE = 680;
+const UNIT_PRICE = 700;
 const EARLY_BIRD_PRICE = 630;
 const EARLY_BIRD_LIMIT = 56;
 
