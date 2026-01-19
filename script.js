@@ -58,7 +58,7 @@ const adminEmails = [
 
 // --------------------- Helpers ---------------------
 const UNIT_PRICE = 700;
-const EARLY_BIRD_PRICE = 630;
+const EARLY_BIRD_PRICE = 650;
 const EARLY_BIRD_LIMIT = 56;
 
 // Function to get the appropriate price based on order
