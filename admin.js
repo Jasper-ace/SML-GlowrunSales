@@ -86,6 +86,7 @@ window.filterByUser = function (user) {
 window.openDeleteModal = openDeleteModal;
 window.openRestoreModal = openRestoreModal;
 window.openAdminViewTicketsModal = openAdminViewTicketsModal;
+window.openPermanentDeleteModal = openPermanentDeleteModal; // Expose new function
 window.showOnlineUsers = function () {
   if (onlineUsersModal) onlineUsersModal.show();
 };
@@ -102,15 +103,21 @@ const clearAllModalEl = document.getElementById("clearAllModal");
 const confirmClearAllBtn = document.getElementById("confirmClearAllBtn");
 const clearDeletedBtn = document.getElementById("clearDeletedBtn");
 const adminViewTicketsModalEl = document.getElementById("adminViewTicketsModal");
+const permanentDeleteModalEl = document.getElementById("permanentDeleteModal"); // New Element
+const confirmPermanentDeleteBtn = document.getElementById("confirmPermanentDeleteBtn"); // New Button
 
 const deleteModal = deleteModalEl ? new bootstrap.Modal(deleteModalEl) : null;
 const restoreModal = restoreModalEl ? new bootstrap.Modal(restoreModalEl) : null;
 const clearAllModal = clearAllModalEl ? new bootstrap.Modal(clearAllModalEl) : null;
 const adminViewTicketsModal = adminViewTicketsModalEl ? new bootstrap.Modal(adminViewTicketsModalEl) : null;
+const permanentDeleteModal = permanentDeleteModalEl ? new bootstrap.Modal(permanentDeleteModalEl) : null; // New Modal
 
 // Online Users Modal
 const onlineUsersModalEl = document.getElementById("onlineUsersModal");
 const onlineUsersModal = onlineUsersModalEl ? new bootstrap.Modal(onlineUsersModalEl) : null;
+
+// Global state for permanent delete
+let permanentDeleteId = null;
 
 // Auth check
 document.addEventListener("DOMContentLoaded", () => {
@@ -148,6 +155,7 @@ document.addEventListener("DOMContentLoaded", () => {
   if (confirmDeleteBtn) confirmDeleteBtn.addEventListener("click", confirmDelete);
   if (confirmRestoreBtn) confirmRestoreBtn.addEventListener("click", confirmRestore);
   if (confirmClearAllBtn) confirmClearAllBtn.addEventListener("click", confirmClearAll);
+  if (confirmPermanentDeleteBtn) confirmPermanentDeleteBtn.addEventListener("click", confirmPermanentDelete); // New listener
   if (clearDeletedBtn) clearDeletedBtn.addEventListener("click", openClearAllModal);
 });
 
@@ -166,10 +174,7 @@ function loadData() {
     renderDeptTable();
     renderActivityTable();
     populateUserFilter();
-    renderActivityTable();
-    populateUserFilter();
     renderSalesChart();
-  }, (error) => {
   }, (error) => {
     console.error("Error loading data:", error);
     showToast("Failed to load data: " + error.message);
@@ -179,10 +184,13 @@ function loadData() {
   const deletedRef = collection(db, "deletedEntries");
 
   onSnapshot(deletedRef, (snapshot) => {
+    console.log("Deleted entries snapshot received:", snapshot.docs.length, "documents");
     deletedEntries = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    console.log("Updated deletedEntries array:", deletedEntries.length, "entries");
     renderDeletedTable();
   }, (error) => {
     console.error("Error loading deleted entries:", error);
+    showToast("Failed to load deleted entries: " + error.message, "danger");
   });
 }
 
@@ -572,18 +580,27 @@ function openDeleteModal(id) {
 async function confirmDelete() {
   if (!deleteId) return;
 
+  const btn = document.getElementById("confirmDeleteBtn");
+  if (btn) {
+    if (btn.disabled) return; // Prevent double click
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Deleting...';
+  }
+
   try {
     // Get the entry data before deleting
     const entryToDelete = entries.find(e => e.id === deleteId);
     if (!entryToDelete) {
-      showToast("Entry not found");
+      showToast("Entry not found", "warning");
       return;
     }
 
     // Identify all entries in this batch
     let batchEntries = [];
-    if (entryToDelete.batchId) {
-      batchEntries = entries.filter(e => e.batchId === entryToDelete.batchId);
+    let batchId = entryToDelete.batchId;
+
+    if (batchId) {
+      batchEntries = entries.filter(e => e.batchId === batchId);
     } else {
       // Fallback for legacy entries: group by schoolId + timestamp (same minute)
       const targetTime = new Date(entryToDelete.createdAt).getTime();
@@ -596,6 +613,9 @@ async function confirmDelete() {
         const eRoundedTimestamp = Math.floor(eTimestamp / 60000) * 60000;
         return eRoundedTimestamp === roundedTimestamp;
       });
+
+      // Generate a new batchId for this group if one doesn't exist
+      batchId = `${safeStr(entryToDelete.schoolId)}_${Date.now()}`;
     }
 
     // Safety fallback
@@ -605,27 +625,69 @@ async function confirmDelete() {
     const totalPrice = batchEntries.reduce((sum, e) => sum + toNumberSafe(e.unitPrice, 0), 0);
     const ticketNumbers = batchEntries.map(e => safeStr(e.ticketNumber)).join(", ");
 
-    const groupedDeletedEntry = {
-      ...entryToDelete, // Base info from first ticket
+    // Helper function to sanitize data for Firestore (remove undefined values)
+    function sanitizeForFirestore(obj) {
+      const sanitized = {};
+      for (const [key, value] of Object.entries(obj)) {
+        if (value !== undefined) {
+          if (value === null || typeof value !== 'object') {
+            sanitized[key] = value;
+          } else if (Array.isArray(value)) {
+            sanitized[key] = value.map(item => 
+              typeof item === 'object' ? sanitizeForFirestore(item) : item
+            );
+          } else {
+            sanitized[key] = sanitizeForFirestore(value);
+          }
+        }
+      }
+      return sanitized;
+    }
+
+    const groupedDeletedEntry = sanitizeForFirestore({
+      // Base info from first ticket (only include defined values)
+      schoolId: safeStr(entryToDelete.schoolId),
+      ticketNumber: safeStr(entryToDelete.ticketNumber),
+      name: safeStr(entryToDelete.name),
+      lastname: safeStr(entryToDelete.lastname),
+      yrlvl: safeStr(entryToDelete.yrlvl),
+      department: safeStr(entryToDelete.department),
+      
+      // Batch information
       quantity: batchEntries.length,
       ticketNumbers: ticketNumbers,
       unitPrice: batchEntries.length === 1 ? toNumberSafe(entryToDelete.unitPrice, UNIT_PRICE) : "Mixed",
       totalPrice: totalPrice,
-      batchId: safeStr(entryToDelete.batchId) || `${safeStr(entryToDelete.schoolId)}_${Date.now()}`,
+      batchId: batchId,
       originalIds: batchEntries.map(e => safeStr(e.id)),
+      
+      // Deletion metadata
       deletedAt: new Date().toISOString(),
       deletedBy: currentUser ? currentUser.email : "Unknown",
-      deletedByName: currentUser ? currentUser.displayName || currentUser.email : "Unknown",
+      deletedByName: currentUser ? (currentUser.displayName || currentUser.email) : "Unknown",
+      
+      // Original entry metadata (only if defined)
+      createdAt: entryToDelete.createdAt || new Date().toISOString(),
+      soldBy: entryToDelete.soldBy || "Unknown",
+      soldByName: entryToDelete.soldByName || entryToDelete.soldBy || "Unknown",
+      soldStatus: entryToDelete.soldStatus || "sold",
+      soldAt: entryToDelete.soldAt || entryToDelete.createdAt || new Date().toISOString(),
 
       // Store individual ticket details for restoration
-      ticketDetails: batchEntries.map(entry => ({
+      ticketDetails: batchEntries.map(entry => sanitizeForFirestore({
         id: safeStr(entry.id),
         ticketNumber: safeStr(entry.ticketNumber),
         unitPrice: toNumberSafe(entry.unitPrice, UNIT_PRICE),
         isEarlyBird: entry.isEarlyBird === true,
-        ticketIndex: toNumberSafe(entry.ticketIndex, 1)
+        ticketIndex: toNumberSafe(entry.ticketIndex, 1),
+        ticketSequenceNumber: entry.ticketSequenceNumber || null,
+        soldStatus: entry.soldStatus || "sold",
+        soldAt: entry.soldAt || entry.createdAt || new Date().toISOString(),
+        soldBy: entry.soldBy || "Unknown",
+        soldByName: entry.soldByName || entry.soldBy || "Unknown",
+        createdAt: entry.createdAt || new Date().toISOString()
       }))
-    };
+    });
 
     // Save to deletedEntries (use batchId as key)
     const deleteDocId = groupedDeletedEntry.batchId;
@@ -636,12 +698,19 @@ async function confirmDelete() {
     await Promise.all(deletePromises);
 
     if (deleteModal) deleteModal.hide();
-    showToast(batchEntries.length > 1 ? `${batchEntries.length} entries moved to Recently Deleted` : "Entry moved to Recently Deleted");
+    const message = batchEntries.length > 1 
+      ? `${batchEntries.length} entries moved to Recently Deleted` 
+      : "Entry moved to Recently Deleted";
+    showToast(message, "success");
   } catch (err) {
     console.error("Delete failed:", err);
-    showToast("Failed to delete entry: " + err.message);
+    showToast("Failed to delete entry: " + err.message, "danger");
   } finally {
     deleteId = null;
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Delete Entry';
+    }
   }
 }
 
@@ -652,13 +721,24 @@ function openRestoreModal(id) {
 }
 
 async function confirmRestore() {
-  if (!restoreId) return;
+  const currentRestoreId = restoreId; // Capture ID locally
+  if (!currentRestoreId) return;
+
+  const btn = document.getElementById("confirmRestoreBtn");
+  if (btn) {
+    if (btn.disabled) return;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Restoring...';
+  }
 
   try {
+    console.log("Attempting to restore entry:", currentRestoreId);
+
     // Get the deleted entry
-    const entryToRestore = deletedEntries.find(e => e.id === restoreId);
+    const entryToRestore = deletedEntries.find(e => e.id === currentRestoreId);
     if (!entryToRestore) {
-      showToast("Entry not found");
+      showToast("Entry not found in deleted list", "warning");
+      if (restoreModal) restoreModal.hide();
       return;
     }
 
@@ -671,7 +751,18 @@ async function confirmRestore() {
       restoreCount = entryToRestore.quantity;
 
       for (const ticketDetail of entryToRestore.ticketDetails) {
-        const restoredTicket = {
+        // Helper function to sanitize data for Firestore (remove undefined values)
+        function sanitizeForFirestore(obj) {
+          const sanitized = {};
+          for (const [key, value] of Object.entries(obj)) {
+            if (value !== undefined) {
+              sanitized[key] = value;
+            }
+          }
+          return sanitized;
+        }
+
+        const restoredTicket = sanitizeForFirestore({
           schoolId: entryToRestore.schoolId,
           ticketNumber: ticketDetail.ticketNumber,
           name: entryToRestore.name,
@@ -682,15 +773,15 @@ async function confirmRestore() {
           unitPrice: ticketDetail.unitPrice,
           isEarlyBird: ticketDetail.isEarlyBird,
           ticketIndex: ticketDetail.ticketIndex,
-          // KEEP ORIGINAL SOLD STATUS if available, else default to 'sold' (not available)
-          soldStatus: entryToRestore.soldStatus || "sold",
-          soldAt: entryToRestore.soldAt || entryToRestore.createdAt, // Restore sold date
-          createdAt: entryToRestore.createdAt,
-          soldBy: entryToRestore.soldBy,
-          soldByName: entryToRestore.soldByName,
+          soldStatus: ticketDetail.soldStatus || entryToRestore.soldStatus || "sold",
+          soldAt: ticketDetail.soldAt || entryToRestore.soldAt || entryToRestore.createdAt || new Date().toISOString(),
+          createdAt: ticketDetail.createdAt || entryToRestore.createdAt || new Date().toISOString(),
+          soldBy: ticketDetail.soldBy || entryToRestore.soldBy || "Unknown",
+          soldByName: ticketDetail.soldByName || entryToRestore.soldByName || "Unknown",
           batchId: entryToRestore.batchId,
-          totalTicketsInBatch: entryToRestore.quantity
-        };
+          totalTicketsInBatch: entryToRestore.quantity,
+          ticketSequenceNumber: ticketDetail.ticketSequenceNumber || null
+        });
 
         // Use original ID if available, otherwise generate new one
         if (ticketDetail.id) {
@@ -707,13 +798,40 @@ async function confirmRestore() {
       // Old individual format - restore as single entry
       const { deletedAt, deletedBy, deletedByName, originalId, ticketNumbers, ticketDetails, totalPrice, ...restoredEntry } = entryToRestore;
 
+      // Helper function to sanitize data for Firestore (remove undefined values)
+      function sanitizeForFirestore(obj) {
+        const sanitized = {};
+        for (const [key, value] of Object.entries(obj)) {
+          if (value !== undefined) {
+            sanitized[key] = value;
+          }
+        }
+        return sanitized;
+      }
+
+      // Ensure required fields are present and sanitize
+      const sanitizedEntry = sanitizeForFirestore({
+        ...restoredEntry,
+        soldStatus: restoredEntry.soldStatus || "sold",
+        quantity: restoredEntry.quantity || 1,
+        unitPrice: restoredEntry.unitPrice || 680,
+        createdAt: restoredEntry.createdAt || new Date().toISOString(),
+        soldBy: restoredEntry.soldBy || "Unknown",
+        soldByName: restoredEntry.soldByName || "Unknown"
+      });
+
       // Move back to entries collection using original ID if available
-      const restoreDocId = originalId || restoreId;
-      await setDoc(doc(db, "entries", restoreDocId), restoredEntry);
+      const restoreDocId = originalId || currentRestoreId;
+      await setDoc(doc(db, "entries", restoreDocId), sanitizedEntry);
     }
 
     // Delete from deletedEntries collection (Critical Step)
-    await deleteDoc(doc(db, "deletedEntries", restoreId));
+    console.log("Deleting from deletedEntries:", currentRestoreId);
+    const deleteResult = await deleteDoc(doc(db, "deletedEntries", currentRestoreId));
+    console.log("Delete operation completed successfully for:", currentRestoreId);
+
+    // Don't manually update local state - let the real-time listener handle it
+    // The onSnapshot listener will automatically update deletedEntries and call renderDeletedTable()
 
     if (restoreModal) restoreModal.hide();
 
@@ -726,18 +844,54 @@ async function confirmRestore() {
     console.error("Restore failed:", err);
     showToast("Failed to restore entry: " + err.message, "danger");
   } finally {
-    restoreId = null;
+    if (restoreId === currentRestoreId) {
+      restoreId = null;
+    }
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Restore Entry';
+    }
   }
 }
 
-// Permanently delete a single entry
-async function permanentlyDelete(id) {
+// Open Permanent Delete Modal
+function openPermanentDeleteModal(id) {
+  permanentDeleteId = id;
+  if (permanentDeleteModal) permanentDeleteModal.show();
+}
+
+// Confirm Permanent Delete
+// Confirm Permanent Delete
+async function confirmPermanentDelete() {
+  if (!permanentDeleteId) return;
+  const id = permanentDeleteId;
+
+  const btn = document.getElementById("confirmPermanentDeleteBtn");
+  if (btn) {
+    if (btn.disabled) return;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Deleting...';
+  }
+
   try {
-    await deleteDoc(doc(db, "deletedEntries", id));
-    showToast("Entry permanently deleted");
+    console.log("Attempting to permanently delete:", id);
+    const deleteResult = await deleteDoc(doc(db, "deletedEntries", id));
+    console.log("Permanent delete operation completed successfully for:", id);
+
+    // Don't manually update local state - let the real-time listener handle it
+    // The onSnapshot listener will automatically update deletedEntries and call renderDeletedTable()
+
+    if (permanentDeleteModal) permanentDeleteModal.hide();
+    showToast("Entry permanently deleted", "success");
   } catch (err) {
     console.error("Permanent delete failed:", err);
-    showToast("Failed to permanently delete entry: " + err.message);
+    showToast("Failed to permanently delete entry: " + err.message, "danger");
+  } finally {
+    permanentDeleteId = null;
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Delete Permanently';
+    }
   }
 }
 
@@ -751,25 +905,47 @@ function openClearAllModal() {
 }
 
 async function confirmClearAll() {
-  try {
-    const deletePromises = deletedEntries.map(entry =>
-      deleteDoc(doc(db, "deletedEntries", entry.id))
-    );
+  const btn = document.getElementById("confirmClearAllBtn");
+  if (btn) {
+    if (btn.disabled) return;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Clearing...';
+  }
 
-    await Promise.all(deletePromises);
+  try {
+    console.log("Attempting to clear all deleted entries, count:", deletedEntries.length);
+    const deletePromises = deletedEntries.map(entry => {
+      console.log("Deleting entry:", entry.id);
+      return deleteDoc(doc(db, "deletedEntries", entry.id));
+    });
+
+    const results = await Promise.all(deletePromises);
+    console.log("Clear all operation completed successfully, deleted:", results.length, "entries");
+
+    // Don't manually update local state - let the real-time listener handle it
+    // The onSnapshot listener will automatically update deletedEntries and call renderDeletedTable()
 
     if (clearAllModal) clearAllModal.hide();
-    showToast(`Cleared ${deletePromises.length} deleted entries permanently`);
+    showToast(`Cleared ${deletePromises.length} deleted entries permanently`, "success");
   } catch (err) {
     console.error("Clear all failed:", err);
-    showToast("Failed to clear deleted entries: " + err.message);
+    showToast("Failed to clear deleted entries: " + err.message, "danger");
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Delete Permanently';
+    }
   }
 }
 
 // Render deleted entries table
 function renderDeletedTable() {
+  console.log("renderDeletedTable called with", deletedEntries.length, "entries");
   const tbody = document.getElementById("deletedTableBody");
-  if (!tbody) return;
+  if (!tbody) {
+    console.error("deletedTableBody element not found");
+    return;
+  }
 
   const searchVal = safeStr(document.getElementById("deletedSearch")?.value).toLowerCase();
 
@@ -825,63 +1001,67 @@ function renderDeletedTable() {
   }
 
   sorted.forEach((e, index) => {
-    const qty = toNumberSafe(e.quantity, 0);
+    try {
+      const qty = toNumberSafe(e.quantity, 0);
 
-    // Handle both old individual entries and new grouped entries
-    let price, total, ticketNumberDisplay;
+      // Handle both old individual entries and new grouped entries
+      let price, total, ticketNumberDisplay;
 
-    if (e.totalPrice) {
-      // New grouped entry format
-      total = toNumberSafe(e.totalPrice, 0);
-      price = e.unitPrice === "Mixed" ? "Mixed" : toNumberSafe(e.unitPrice, UNIT_PRICE);
+      if (e.totalPrice) {
+        // New grouped entry format
+        total = toNumberSafe(e.totalPrice, 0);
+        price = e.unitPrice === "Mixed" ? "Mixed" : toNumberSafe(e.unitPrice, UNIT_PRICE);
 
-      // Create ticket number display
-      if (qty === 1) {
-        // Single ticket - show ticket number directly
-        const ticketNumbers = safeStr(e.ticketNumbers);
-        ticketNumberDisplay = ticketNumbers || "—";
+        // Create ticket number display
+        if (qty === 1) {
+          // Single ticket - show ticket number directly
+          const ticketNumbers = safeStr(e.ticketNumbers);
+          ticketNumberDisplay = ticketNumbers || "—";
+        } else {
+          // Multiple tickets - show "View Tickets" button
+          ticketNumberDisplay = `
+            <button class="btn btn-sm btn-primary view-deleted-tickets-btn" 
+                    data-entry-index="${index}"
+                    style="background: #7c3aed; border: none; padding: 4px 8px; border-radius: 12px; font-size: 0.8rem;">
+              View ${qty} tickets
+            </button>
+          `;
+        }
       } else {
-        // Multiple tickets - show "View Tickets" button
-        ticketNumberDisplay = `
-          <button class="btn btn-sm btn-primary view-deleted-tickets-btn" 
-                  data-entry-index="${index}"
-                  style="background: #7c3aed; border: none; padding: 4px 8px; border-radius: 12px; font-size: 0.8rem;">
-            View ${qty} tickets
-          </button>
-        `;
+        // Old individual entry format
+        price = toNumberSafe(e.unitPrice, UNIT_PRICE);
+        total = qty * price;
+        ticketNumberDisplay = safeStr(e.ticketNumber);
       }
-    } else {
-      // Old individual entry format
-      price = toNumberSafe(e.unitPrice, UNIT_PRICE);
-      total = qty * price;
-      ticketNumberDisplay = safeStr(e.ticketNumber);
+
+      const deletedAt = e.deletedAt ? new Date(e.deletedAt).toLocaleString() : "—";
+      const deletedBy = e.deletedByName || e.deletedBy || "—";
+
+      const row = document.createElement("tr");
+      row.style.backgroundColor = "rgba(239, 68, 68, 0.05)";
+      row.innerHTML = `
+        <td class="text-center">${index + 1}</td>
+        <td>${safeStr(e.schoolId)}</td>
+        <td>${ticketNumberDisplay}</td>
+        <td>${safeStr(e.name)} ${safeStr(e.lastname)}</td>
+        <td>${safeStr(e.department)}</td>
+        <td class="text-center">${qty}</td>
+        <td class="text-center">${formatCurrency(total)}</td>
+        <td><small>${deletedBy}</small></td>
+        <td><small>${deletedAt}</small></td>
+        <td class="text-center">
+          <button class="btn btn-sm btn-success me-1" onclick="openRestoreModal('${e.id}')" title="Restore">
+            ♻️
+          </button>
+          <button class="btn btn-sm btn-danger" onclick="openPermanentDeleteModal('${e.id}')" title="Delete Permanently">
+            🔥
+          </button>
+        </td>
+      `;
+      tbody.appendChild(row);
+    } catch (rowError) {
+      console.error("Error rendering deleted row:", rowError, e);
     }
-
-    const deletedAt = e.deletedAt ? new Date(e.deletedAt).toLocaleString() : "—";
-    const deletedBy = e.deletedByName || e.deletedBy || "—";
-
-    const row = document.createElement("tr");
-    row.style.backgroundColor = "rgba(239, 68, 68, 0.05)";
-    row.innerHTML = `
-      <td class="text-center">${index + 1}</td>
-      <td>${safeStr(e.schoolId)}</td>
-      <td>${ticketNumberDisplay}</td>
-      <td>${safeStr(e.name)} ${safeStr(e.lastname)}</td>
-      <td>${safeStr(e.department)}</td>
-      <td class="text-center">${qty}</td>
-      <td class="text-center">${formatCurrency(total)}</td>
-      <td><small>${deletedBy}</small></td>
-      <td><small>${deletedAt}</small></td>
-      <td class="text-center">
-        <button class="btn btn-sm btn-success me-1" onclick="openRestoreModal('${e.id}')" title="Restore">
-          ♻️
-        </button>
-        <button class="btn btn-sm btn-danger" onclick="permanentlyDelete('${e.id}')" title="Delete Permanently">
-          🔥
-        </button>
-      </td>
-    `;
-    tbody.appendChild(row);
   });
 
   // Attach view deleted tickets modal handlers
@@ -1002,7 +1182,7 @@ function openAdminDeletedViewTicketsModal(deletedEntry) {
 
 // Make functions global
 window.openRestoreModal = openRestoreModal;
-window.permanentlyDelete = permanentlyDelete;
+window.openPermanentDeleteModal = openPermanentDeleteModal;
 window.openAdminViewTicketsModal = openAdminViewTicketsModal;
 window.openAdminDeletedViewTicketsModal = openAdminDeletedViewTicketsModal;
 
