@@ -580,23 +580,63 @@ async function confirmDelete() {
       return;
     }
 
-    // Add deletion metadata
-    const deletedEntry = {
-      ...entryToDelete,
+    // Identify all entries in this batch
+    let batchEntries = [];
+    if (entryToDelete.batchId) {
+      batchEntries = entries.filter(e => e.batchId === entryToDelete.batchId);
+    } else {
+      // Fallback for legacy entries: group by schoolId + timestamp (same minute)
+      const targetTime = new Date(entryToDelete.createdAt).getTime();
+      const roundedTimestamp = Math.floor(targetTime / 60000) * 60000;
+
+      batchEntries = entries.filter(e => {
+        if (safeStr(e.schoolId) !== safeStr(entryToDelete.schoolId)) return false;
+        if (!e.createdAt) return false;
+        const eTimestamp = new Date(e.createdAt).getTime();
+        const eRoundedTimestamp = Math.floor(eTimestamp / 60000) * 60000;
+        return eRoundedTimestamp === roundedTimestamp;
+      });
+    }
+
+    // Safety fallback
+    if (batchEntries.length === 0) batchEntries = [entryToDelete];
+
+    // Create aggregated delete record
+    const totalPrice = batchEntries.reduce((sum, e) => sum + toNumberSafe(e.unitPrice, 0), 0);
+    const ticketNumbers = batchEntries.map(e => safeStr(e.ticketNumber)).join(", ");
+
+    const groupedDeletedEntry = {
+      ...entryToDelete, // Base info from first ticket
+      quantity: batchEntries.length,
+      ticketNumbers: ticketNumbers,
+      unitPrice: batchEntries.length === 1 ? toNumberSafe(entryToDelete.unitPrice, UNIT_PRICE) : "Mixed",
+      totalPrice: totalPrice,
+      batchId: safeStr(entryToDelete.batchId) || `${safeStr(entryToDelete.schoolId)}_${Date.now()}`,
+      originalIds: batchEntries.map(e => safeStr(e.id)),
       deletedAt: new Date().toISOString(),
       deletedBy: currentUser ? currentUser.email : "Unknown",
       deletedByName: currentUser ? currentUser.displayName || currentUser.email : "Unknown",
-      originalId: deleteId
+
+      // Store individual ticket details for restoration
+      ticketDetails: batchEntries.map(entry => ({
+        id: safeStr(entry.id),
+        ticketNumber: safeStr(entry.ticketNumber),
+        unitPrice: toNumberSafe(entry.unitPrice, UNIT_PRICE),
+        isEarlyBird: entry.isEarlyBird === true,
+        ticketIndex: toNumberSafe(entry.ticketIndex, 1)
+      }))
     };
 
-    // Move to deletedEntries collection
-    await setDoc(doc(db, "deletedEntries", deleteId), deletedEntry);
+    // Save to deletedEntries (use batchId as key)
+    const deleteDocId = groupedDeletedEntry.batchId;
+    await setDoc(doc(db, "deletedEntries", deleteDocId), groupedDeletedEntry);
 
-    // Delete from entries collection
-    await deleteDoc(doc(db, "entries", deleteId));
+    // Delete all individual entries
+    const deletePromises = batchEntries.map(entry => deleteDoc(doc(db, "entries", entry.id)));
+    await Promise.all(deletePromises);
 
     if (deleteModal) deleteModal.hide();
-    showToast("Entry moved to Recently Deleted");
+    showToast(batchEntries.length > 1 ? `${batchEntries.length} entries moved to Recently Deleted` : "Entry moved to Recently Deleted");
   } catch (err) {
     console.error("Delete failed:", err);
     showToast("Failed to delete entry: " + err.message);
@@ -622,10 +662,13 @@ async function confirmRestore() {
       return;
     }
 
+    let restoreCount = 1;
+
     // Check if this is a grouped entry (new format) or individual entry (old format)
     if (entryToRestore.ticketDetails && entryToRestore.ticketDetails.length > 0) {
       // New grouped format - restore individual tickets
       const restorePromises = [];
+      restoreCount = entryToRestore.quantity;
 
       for (const ticketDetail of entryToRestore.ticketDetails) {
         const restoredTicket = {
@@ -639,8 +682,9 @@ async function confirmRestore() {
           unitPrice: ticketDetail.unitPrice,
           isEarlyBird: ticketDetail.isEarlyBird,
           ticketIndex: ticketDetail.ticketIndex,
-          soldStatus: "available", // Reset to available on restore
-          soldAt: null,
+          // KEEP ORIGINAL SOLD STATUS if available, else default to 'sold' (not available)
+          soldStatus: entryToRestore.soldStatus || "sold",
+          soldAt: entryToRestore.soldAt || entryToRestore.createdAt, // Restore sold date
           createdAt: entryToRestore.createdAt,
           soldBy: entryToRestore.soldBy,
           soldByName: entryToRestore.soldByName,
@@ -659,7 +703,6 @@ async function confirmRestore() {
       // Execute all restore operations
       await Promise.all(restorePromises);
 
-      showToast(`${entryToRestore.quantity} tickets restored successfully`);
     } else {
       // Old individual format - restore as single entry
       const { deletedAt, deletedBy, deletedByName, originalId, ticketNumbers, ticketDetails, totalPrice, ...restoredEntry } = entryToRestore;
@@ -667,17 +710,21 @@ async function confirmRestore() {
       // Move back to entries collection using original ID if available
       const restoreDocId = originalId || restoreId;
       await setDoc(doc(db, "entries", restoreDocId), restoredEntry);
-
-      showToast("Entry restored successfully");
     }
 
-    // Delete from deletedEntries collection
+    // Delete from deletedEntries collection (Critical Step)
     await deleteDoc(doc(db, "deletedEntries", restoreId));
 
     if (restoreModal) restoreModal.hide();
+
+    const msg = restoreCount > 1
+      ? `${restoreCount} tickets restored successfully`
+      : "Entry restored successfully";
+    showToast(msg, "success");
+
   } catch (err) {
     console.error("Restore failed:", err);
-    showToast("Failed to restore entry: " + err.message);
+    showToast("Failed to restore entry: " + err.message, "danger");
   } finally {
     restoreId = null;
   }
@@ -993,6 +1040,29 @@ function openAdminViewTicketsModal(schoolId, timestamp) {
 
   // Sort batch entries by ticket number
   batchEntries.sort((a, b) => safeStr(a.ticketNumber).localeCompare(safeStr(b.ticketNumber)));
+
+  // Apply current search filter to the modal view if active
+  const searchVal = safeStr(document.getElementById("activitySearch")?.value).toLowerCase();
+
+  if (searchVal) {
+    const filteredBatch = batchEntries.filter(entry => {
+      const sid = safeStr(entry.schoolId).toLowerCase();
+      const ticketNum = safeStr(entry.ticketNumber).toLowerCase();
+      const name = safeStr(entry.name).toLowerCase();
+      const lastname = safeStr(entry.lastname).toLowerCase();
+      const fullname = `${name} ${lastname}`;
+
+      return sid.includes(searchVal) ||
+        ticketNum.includes(searchVal) ||
+        fullname.includes(searchVal) ||
+        name.includes(searchVal) ||
+        lastname.includes(searchVal);
+    });
+
+    if (filteredBatch.length > 0) {
+      batchEntries = filteredBatch;
+    }
+  }
 
   // Create modal content
   const modalContent = document.getElementById("adminViewTicketsContent");

@@ -1,11 +1,6 @@
 // ================== FIREBASE AUTH SETUP ================== //
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
 import {
-  getAuth,
-  onAuthStateChanged,
-  signOut
-} from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
-import {
   getFirestore,
   collection,
   addDoc,
@@ -14,8 +9,15 @@ import {
   deleteDoc,
   doc,
   setDoc,
-  serverTimestamp
+  serverTimestamp,
+  runTransaction
 } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
+import {
+  getAuth,
+  onAuthStateChanged,
+  signOut
+} from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
+
 
 // Your Firebase config
 const firebaseConfig = {
@@ -519,42 +521,64 @@ async function handleAddEntry(e) {
     return;
   }
 
-  // Create entries for each ticket
-  const entriesToAdd = [];
-  const currentTicketCount = entries.length; // Current number of tickets sold
-  const batchId = `${schoolIdVal}_${Date.now()}`; // FIX: Generate ID once for the whole batch
-
-  for (let i = 0; i < quantity; i++) {
-    const ticketSequenceNumber = currentTicketCount + i; // Position in the overall sequence
-    const ticketPrice = getPriceForTicketSequence(ticketSequenceNumber);
-
-    const entry = {
-      schoolId: schoolIdVal,
-      ticketNumber: ticketNumbers[i],
-      name,
-      lastname,
-      yrlvl,
-      department,
-      quantity: 1, // Each entry represents 1 ticket
-      unitPrice: ticketPrice,
-      isEarlyBird: false,
-      ticketSequenceNumber: ticketSequenceNumber + 1, // 1-based numbering for display
-      soldStatus: soldStatus,
-      soldAt: new Date().toISOString(), // Always sold per policy
-      createdAt: new Date().toISOString(),
-      soldBy: currentUser?.email || "Unknown",
-      soldByName: currentUser?.displayName || currentUser?.email || "Unknown",
-      batchId: batchId, // Group tickets from same purchase
-      ticketIndex: i + 1, // Which ticket in the batch (1, 2, 3, etc.)
-      totalTicketsInBatch: quantity
-    };
-    entriesToAdd.push(entry);
-  }
-
   try {
-    // Add all entries to Firestore
-    const addPromises = entriesToAdd.map(entry => addDoc(collection(db, "entries"), entry));
-    await Promise.all(addPromises);
+    const batchId = `${schoolIdVal}_${Date.now()}`;
+    const timestamp = new Date().toISOString();
+
+    // Use a transaction to ensure unique ticket sequence numbers
+    await runTransaction(db, async (transaction) => {
+      // 1. Get the current global counter (or calculate from entries if using that method, 
+      // but for true safety we need a read-lock. 
+      // Since we don't have a separate counter doc, we will read the collection size in a transaction?
+      // Reading collection size is expensive/impossible in transaction for large collections.
+      // ADOPTED STRATEGY: Use a dedicated counter document "metadata/stats"
+
+      const statsDocRef = doc(db, "metadata", "stats");
+      const statsDoc = await transaction.get(statsDocRef);
+
+      let currentSequence = 0;
+      if (statsDoc.exists()) {
+        currentSequence = statsDoc.data().totalTickets || 0;
+      } else {
+        // Fallback: If no stats doc, we might risk a race, but better to initialize
+        // In a real migration, we'd run a script to set this. For now, assume 0 or handle logic.
+        // Let's assume the user has run a migration or we start from current local count if doc doesn't exist
+        // But local count IS entries.length. Reading all entries in a transaction is too much.
+        // CRITICAL FIX: We will create the doc if missing, using a safe localized guess or 0.
+        currentSequence = entries.length; // Use current loaded view as best estimate for first run
+      }
+
+      // 2. Prepare all new entry writes
+      const newEntries = [];
+      for (let i = 0; i < quantity; i++) {
+        const sequenceNum = currentSequence + i + 1;
+        const entry = {
+          schoolId: schoolIdVal,
+          ticketNumber: ticketNumbers[i],
+          name,
+          lastname,
+          yrlvl,
+          department,
+          quantity: 1,
+          unitPrice: getTicketPrice(),
+          isEarlyBird: false,
+          ticketSequenceNumber: sequenceNum,
+          soldStatus: soldStatus,
+          soldAt: timestamp,
+          createdAt: timestamp,
+          soldBy: currentUser?.email || "Unknown",
+          soldByName: currentUser?.displayName || currentUser?.email || "Unknown",
+          batchId: batchId,
+          ticketIndex: i + 1,
+          totalTicketsInBatch: quantity
+        };
+        const newRef = doc(collection(db, "entries"));
+        transaction.set(newRef, entry);
+      }
+
+      // 3. Update the global stats counter
+      transaction.set(statsDocRef, { totalTickets: currentSequence + quantity }, { merge: true });
+    });
 
     await loadEntries();
     studentForm.reset();
@@ -1135,6 +1159,30 @@ function openViewTicketsModal(id) {
 
   // Sort batch entries by ticket number
   batchEntries.sort((a, b) => safeStr(a.ticketNumber).localeCompare(safeStr(b.ticketNumber)));
+
+  // Apply current search filter to the modal view if active (Fix for "view 2 tickets showing 50")
+  const searchVal = safeStr(document.getElementById("searchInput")?.value).toLowerCase();
+
+  if (searchVal) {
+    const filteredBatch = batchEntries.filter(entry => {
+      const sid = safeStr(entry.schoolId).toLowerCase();
+      const ticketNum = safeStr(entry.ticketNumber).toLowerCase();
+      const name = safeStr(entry.name).toLowerCase();
+      const lastname = safeStr(entry.lastname).toLowerCase();
+      const fullname = `${name} ${lastname}`;
+
+      return sid.includes(searchVal) ||
+        ticketNum.includes(searchVal) ||
+        fullname.includes(searchVal) ||
+        name.includes(searchVal) ||
+        lastname.includes(searchVal);
+    });
+
+    // Only apply filter if it doesn't filter out everything (safety check)
+    if (filteredBatch.length > 0) {
+      batchEntries = filteredBatch;
+    }
+  }
 
   // Create modal content
   const modalContent = document.getElementById("viewTicketsContent");

@@ -1,5 +1,5 @@
 // 404 Handler - Redirect to 404.html for non-existent pages
-(function() {
+(function () {
   // List of valid pages in your app
   const validPages = [
     '/',
@@ -14,10 +14,10 @@
 
   // Get current path
   const currentPath = window.location.pathname;
-  
+
   // Normalize path (remove trailing slash if present)
-  const normalizedPath = currentPath.endsWith('/') && currentPath !== '/' 
-    ? currentPath.slice(0, -1) 
+  const normalizedPath = currentPath.endsWith('/') && currentPath !== '/'
+    ? currentPath.slice(0, -1)
     : currentPath;
 
   // Check if current page is valid
@@ -32,7 +32,7 @@
   });
 
   // Check if file exists (for assets, etc.)
-  const isAssetOrKnownFile = 
+  const isAssetOrKnownFile =
     normalizedPath.includes('.css') ||
     normalizedPath.includes('.js') ||
     normalizedPath.includes('.png') ||
@@ -45,7 +45,8 @@
     normalizedPath.includes('.webm') ||
     normalizedPath.includes('/assets/') ||
     normalizedPath.includes('/.git/') ||
-    normalizedPath.includes('/.vscode/');
+    normalizedPath.includes('/.vscode/') ||
+    normalizedPath.includes('favicon.ico');
 
   // If not a valid page and not an asset, redirect to 404
   if (!isValidPage && !isAssetOrKnownFile && currentPath !== '/404.html' && !currentPath.endsWith('/404.html')) {
