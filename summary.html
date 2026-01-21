@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
@@ -73,6 +74,7 @@
         opacity: 0;
         transform: translateY(20px);
       }
+
       to {
         opacity: 1;
         transform: translateY(0);
@@ -270,6 +272,7 @@
     }
   </style>
 </head>
+
 <body class="bg-light">
   <div class="container py-5">
     <div class="card shadow-lg border-0 rounded-3">
@@ -301,186 +304,187 @@
     </div>
   </div>
 
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
-  import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
-  import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
+    import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
 
-  // 🔑 Firebase config
-  const firebaseConfig = {
-    apiKey: "AIzaSyAFSdfPdf9URpjH-SgfX5xccgTIpXWIjj4",
-    authDomain: "glowrun-sales.firebaseapp.com",
-    projectId: "glowrun-sales",
-    storageBucket: "glowrun-sales.appspot.com",
-    messagingSenderId: "295519366546",
-    appId: "1:295519366546:web:592af0e701eed3e828e54b",
-    measurementId: "G-YER90NZLVD"
-  };
+    // 🔑 Firebase config
+    const firebaseConfig = {
+      apiKey: "AIzaSyAFSdfPdf9URpjH-SgfX5xccgTIpXWIjj4",
+      authDomain: "glowrun-sales.firebaseapp.com",
+      projectId: "glowrun-sales",
+      storageBucket: "glowrun-sales.appspot.com",
+      messagingSenderId: "295519366546",
+      appId: "1:295519366546:web:592af0e701eed3e828e54b",
+      measurementId: "G-YER90NZLVD"
+    };
 
-  // ✅ Init Firebase
-  const app = initializeApp(firebaseConfig);
-  const auth = getAuth(app);
-  const db = getFirestore(app);
+    // ✅ Init Firebase
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
 
-  // 🚨 Redirect if not logged in
-  onAuthStateChanged(auth, async (user) => {
-    if (!user) {
-      window.location.href = "index.html";
-    } else {
-      console.log("✅ Logged in as:", user.email);
-      await loadSalesSummary(); // load sales after login
-    }
-  });
-
-  // 📊 Load Sales Summary
-  async function loadSalesSummary() {
-    const querySnapshot = await getDocs(collection(db, "entries"));
-    let salesData = {};
-    let overallTotal = 0;
-    let overallStudents = 0;
-
-    querySnapshot.forEach((doc) => {
-      const data = doc.data();
-      const dept = data.department || "Unknown";
-      const quantity = Number(data.quantity) || 0;
-      // Use actual unit price from the entry, fallback to 680 if not available
-      const unitPrice = Number(data.unitPrice) || 680;
-      const amount = quantity * unitPrice;
-
-      if (!salesData[dept]) {
-        salesData[dept] = { students: 0, total: 0 };
+    // 🚨 Redirect if not logged in
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        window.location.href = "index.html";
+      } else {
+        console.log("✅ Logged in as:", user.email);
+        await loadSalesSummary(); // load sales after login
       }
-
-      salesData[dept].students += quantity;
-      salesData[dept].total += amount;
-
-      overallStudents += quantity;
-      overallTotal += amount;
     });
 
-    const tbody = document.querySelector("#deptTable tbody");
-    tbody.innerHTML = "";
+    // 📊 Load Sales Summary
+    async function loadSalesSummary() {
+      const querySnapshot = await getDocs(collection(db, "entries"));
+      let salesData = {};
+      let overallTotal = 0;
+      let overallStudents = 0;
 
-    Object.entries(salesData).forEach(([dept, { students, total }]) => {
-      const row = `
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        const dept = data.department || "Unknown";
+        const quantity = Number(data.quantity) || 0;
+        // Use actual unit price from the entry, fallback to 680 if not available
+        const unitPrice = Number(data.unitPrice) || 700;
+        const amount = quantity * unitPrice;
+
+        if (!salesData[dept]) {
+          salesData[dept] = { students: 0, total: 0 };
+        }
+
+        salesData[dept].students += quantity;
+        salesData[dept].total += amount;
+
+        overallStudents += quantity;
+        overallTotal += amount;
+      });
+
+      const tbody = document.querySelector("#deptTable tbody");
+      tbody.innerHTML = "";
+
+      Object.entries(salesData).forEach(([dept, { students, total }]) => {
+        const row = `
         <tr>
           <td>${dept}</td>
           <td>${students}</td>
           <td>₱${total.toLocaleString()}</td>
         </tr>
       `;
-      tbody.insertAdjacentHTML("beforeend", row);
-    });
+        tbody.insertAdjacentHTML("beforeend", row);
+      });
 
-    const finalRow = `
+      const finalRow = `
       <tr class="table-info fw-bold">
         <td>OVERALL TOTAL</td>
         <td>${overallStudents}</td>
         <td>₱${overallTotal.toLocaleString()}</td>
       </tr>
     `;
-    tbody.insertAdjacentHTML("beforeend", finalRow);
-  }
-
-  // 📥 Download PDF
-  document.getElementById("downloadPdf").addEventListener("click", () => {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
-    
-    // Set document to support UTF-8 characters
-    doc.setFont("helvetica");
-
-    // Add header with styling
-    doc.setFontSize(18);
-    doc.setTextColor(124, 58, 237); // Purple color
-    doc.text("SML Organization", 105, 15, { align: "center" });
-    
-    doc.setFontSize(14);
-    doc.setTextColor(107, 114, 128); // Gray color
-    doc.text("Department Sales Summary Report", 105, 23, { align: "center" });
-    
-    // Add date
-    doc.setFontSize(10);
-    doc.setTextColor(156, 163, 175);
-    const currentDate = new Date().toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
-    });
-    doc.text(`Generated on: ${currentDate}`, 105, 30, { align: "center" });
-
-    // Create table data - replace peso sign with PHP for PDF compatibility
-    const tableData = [];
-    const rows = document.querySelectorAll("#deptTable tbody tr");
-    
-    rows.forEach((row) => {
-      const cells = row.querySelectorAll("td");
-      if (cells.length === 3) {
-        // Get the amount text and replace peso sign with PHP
-        let grandTotal = cells[2].textContent.trim();
-        // Replace the peso sign (₱) with PHP for PDF compatibility
-        grandTotal = grandTotal.replace('₱', 'PHP ');
-        
-        tableData.push([
-          cells[0].textContent.trim(),
-          cells[1].textContent.trim(),
-          grandTotal
-        ]);
-      }
-    });
-
-    // Generate table
-    doc.autoTable({
-      head: [['Department', 'Total of Sales', 'Grand Total (PHP)']],
-      body: tableData,
-      startY: 38,
-      theme: "striped",
-      headStyles: { 
-        fillColor: [124, 58, 237], // Purple
-        textColor: [255, 255, 255],
-        fontStyle: 'bold',
-        fontSize: 11,
-        halign: 'center'
-      },
-      bodyStyles: {
-        fontSize: 10,
-        halign: 'center'
-      },
-      columnStyles: {
-        2: { halign: 'right' } // Right align the Grand Total column
-      },
-      alternateRowStyles: {
-        fillColor: [245, 243, 255] // Light purple
-      },
-      didParseCell: function (data) {
-        // Style the OVERALL TOTAL row
-        if (data.row.index === tableData.length - 1 && data.section === 'body') {
-          data.cell.styles.fillColor = [221, 214, 254];
-          data.cell.styles.textColor = [109, 40, 217];
-          data.cell.styles.fontStyle = 'bold';
-          data.cell.styles.fontSize = 11;
-        }
-      }
-    });
-
-    // Add footer
-    const pageCount = doc.internal.getNumberOfPages();
-    for (let i = 1; i <= pageCount; i++) {
-      doc.setPage(i);
-      doc.setFontSize(8);
-      doc.setTextColor(156, 163, 175);
-      doc.text(
-        `© ${new Date().getFullYear()} SML Organization - Page ${i} of ${pageCount}`,
-        105,
-        doc.internal.pageSize.height - 10,
-        { align: "center" }
-      );
+      tbody.insertAdjacentHTML("beforeend", finalRow);
     }
 
-    // Save with timestamp
-    const timestamp = new Date().toISOString().split('T')[0];
-    doc.save(`SML_Sales_Summary_${timestamp}.pdf`);
-  });
-</script>
+    // 📥 Download PDF
+    document.getElementById("downloadPdf").addEventListener("click", () => {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+
+      // Set document to support UTF-8 characters
+      doc.setFont("helvetica");
+
+      // Add header with styling
+      doc.setFontSize(18);
+      doc.setTextColor(124, 58, 237); // Purple color
+      doc.text("SML Organization", 105, 15, { align: "center" });
+
+      doc.setFontSize(14);
+      doc.setTextColor(107, 114, 128); // Gray color
+      doc.text("Department Sales Summary Report", 105, 23, { align: "center" });
+
+      // Add date
+      doc.setFontSize(10);
+      doc.setTextColor(156, 163, 175);
+      const currentDate = new Date().toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+      doc.text(`Generated on: ${currentDate}`, 105, 30, { align: "center" });
+
+      // Create table data - replace peso sign with PHP for PDF compatibility
+      const tableData = [];
+      const rows = document.querySelectorAll("#deptTable tbody tr");
+
+      rows.forEach((row) => {
+        const cells = row.querySelectorAll("td");
+        if (cells.length === 3) {
+          // Get the amount text and replace peso sign with PHP
+          let grandTotal = cells[2].textContent.trim();
+          // Replace the peso sign (₱) with PHP for PDF compatibility
+          grandTotal = grandTotal.replace('₱', 'PHP ');
+
+          tableData.push([
+            cells[0].textContent.trim(),
+            cells[1].textContent.trim(),
+            grandTotal
+          ]);
+        }
+      });
+
+      // Generate table
+      doc.autoTable({
+        head: [['Department', 'Total of Sales', 'Grand Total (PHP)']],
+        body: tableData,
+        startY: 38,
+        theme: "striped",
+        headStyles: {
+          fillColor: [124, 58, 237], // Purple
+          textColor: [255, 255, 255],
+          fontStyle: 'bold',
+          fontSize: 11,
+          halign: 'center'
+        },
+        bodyStyles: {
+          fontSize: 10,
+          halign: 'center'
+        },
+        columnStyles: {
+          2: { halign: 'right' } // Right align the Grand Total column
+        },
+        alternateRowStyles: {
+          fillColor: [245, 243, 255] // Light purple
+        },
+        didParseCell: function (data) {
+          // Style the OVERALL TOTAL row
+          if (data.row.index === tableData.length - 1 && data.section === 'body') {
+            data.cell.styles.fillColor = [221, 214, 254];
+            data.cell.styles.textColor = [109, 40, 217];
+            data.cell.styles.fontStyle = 'bold';
+            data.cell.styles.fontSize = 11;
+          }
+        }
+      });
+
+      // Add footer
+      const pageCount = doc.internal.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.setTextColor(156, 163, 175);
+        doc.text(
+          `© ${new Date().getFullYear()} SML Organization - Page ${i} of ${pageCount}`,
+          105,
+          doc.internal.pageSize.height - 10,
+          { align: "center" }
+        );
+      }
+
+      // Save with timestamp
+      const timestamp = new Date().toISOString().split('T')[0];
+      doc.save(`SML_Sales_Summary_${timestamp}.pdf`);
+    });
+  </script>
 </body>
+
 </html>

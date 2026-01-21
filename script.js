@@ -59,25 +59,15 @@ const adminEmails = [
 
 // --------------------- Helpers ---------------------
 const UNIT_PRICE = 700;
-const EARLY_BIRD_PRICE = 650;
-const EARLY_BIRD_LIMIT = 56;
+
 
 // Function to get the appropriate price based on order
 function getTicketPrice() {
-  // Count total sold tickets (not entries, since each entry = 1 ticket)
-  const soldTicketsCount = entries.length;
-
-  if (soldTicketsCount < EARLY_BIRD_LIMIT) {
-    return EARLY_BIRD_PRICE;
-  }
   return UNIT_PRICE;
 }
 
 // Function to get price for a specific ticket number in sequence
 function getPriceForTicketSequence(ticketIndex) {
-  if (ticketIndex < EARLY_BIRD_LIMIT) {
-    return EARLY_BIRD_PRICE;
-  }
   return UNIT_PRICE;
 }
 
@@ -217,7 +207,6 @@ function loadEntries() {
     window.entriesUnsub = onSnapshot(entriesRef, (snapshot) => {
       entries = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
       renderTable(); // automatically re-render whenever Firestore updates
-      updatePricingInfo(); // Update pricing information
     }, (error) => {
       console.error("Realtime listener error:", error);
       showToast("Failed to listen for updates: " + error.message, "danger");
@@ -231,35 +220,7 @@ function loadEntries() {
   }
 }
 
-// Update pricing information display
-function updatePricingInfo() {
-  const pricingInfoEl = document.getElementById("pricingInfo");
-  if (!pricingInfoEl) return;
 
-  const currentTicketCount = entries.length;
-  const remainingEarlyBird = Math.max(0, EARLY_BIRD_LIMIT - currentTicketCount);
-
-  let infoHTML = "";
-
-  if (remainingEarlyBird > 0) {
-    infoHTML = `
-      <div class="alert alert-info py-2 mb-0">
-        <strong>🎉 Early Bird Special!</strong><br>
-        <span class="text-success">₱${EARLY_BIRD_PRICE}</span> per ticket for the next <strong>${remainingEarlyBird}</strong> tickets<br>
-        <small>Regular price: ₱${UNIT_PRICE} (after ${EARLY_BIRD_LIMIT} tickets sold)</small>
-      </div>
-    `;
-  } else {
-    infoHTML = `
-      <div class="alert alert-secondary py-2 mb-0">
-        <strong>Regular Price:</strong> ₱${UNIT_PRICE} per ticket<br>
-        <small>Early bird promotion has ended (${EARLY_BIRD_LIMIT} tickets sold)</small>
-      </div>
-    `;
-  }
-
-  pricingInfoEl.innerHTML = infoHTML;
-}
 
 // Handle quantity changes to create dynamic ticket number fields
 function handleQuantityChange() {
@@ -576,7 +537,7 @@ async function handleAddEntry(e) {
       department,
       quantity: 1, // Each entry represents 1 ticket
       unitPrice: ticketPrice,
-      isEarlyBird: ticketSequenceNumber < EARLY_BIRD_LIMIT,
+      isEarlyBird: false,
       ticketSequenceNumber: ticketSequenceNumber + 1, // 1-based numbering for display
       soldStatus: soldStatus,
       soldAt: new Date().toISOString(), // Always sold per policy
@@ -704,6 +665,9 @@ async function handleSaveEdit(e) {
     const updatePromises = [];
     const newEntryPromises = [];
 
+    // Determine batchId (use existing or generate new for legacy entries)
+    const batchId = batchEntries[0].batchId || `${updatedSchoolId}_${Date.now()}`;
+
     // Update existing entries (keep their original prices and early bird status)
     for (let i = 0; i < batchEntries.length; i++) {
       const updated = {
@@ -719,7 +683,8 @@ async function handleSaveEdit(e) {
         isEarlyBird: batchEntries[i].isEarlyBird,
         soldStatus: updatedSoldStatus,
         soldAt: batchEntries[i].soldAt || new Date().toISOString(), // Keep original date or set new if missing
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
+        batchId: batchId // Ensure legacy entries get the batch ID
       };
 
       updatePromises.push(updateDoc(doc(db, "entries", batchEntries[i].id), updated));
@@ -742,13 +707,13 @@ async function handleSaveEdit(e) {
         department: updatedDepartment,
         quantity: 1, // Each entry represents 1 ticket
         unitPrice: ticketPrice,
-        isEarlyBird: ticketSequenceNumber < EARLY_BIRD_LIMIT,
+        isEarlyBird: false,
         soldStatus: updatedSoldStatus,
         soldAt: new Date().toISOString(), // Always sold per policy
         createdAt: new Date().toISOString(),
         soldBy: currentUser?.email || "Unknown",
         soldByName: currentUser?.displayName || currentUser?.email || "Unknown",
-        batchId: batchEntries[0].batchId || `${updatedSchoolId}_${Date.now()}`,
+        batchId: batchId,
         ticketIndex: i + 1,
         totalTicketsInBatch: newQuantity,
         ticketSequenceNumber: ticketSequenceNumber + 1 // 1-based numbering for display

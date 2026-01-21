@@ -38,7 +38,7 @@ const adminEmails = [
   "jsoriano@lorma.edu"
 ];
 
-const UNIT_PRICE = 680;
+const UNIT_PRICE = 700;
 let entries = [];
 let deletedEntries = [];
 let currentUser = null;
@@ -62,7 +62,33 @@ function formatCurrency(n) {
 
 function showToast(message, type = "info") {
   console.log(`[${type.toUpperCase()}] ${message}`);
+  // Try to use the dashboard toast if available (unlikely in admin but good practice)
+  const toastRoot = document.getElementById("appToast");
+  if (toastRoot) {
+    const body = toastRoot.querySelector(".toast-body");
+    if (body) body.textContent = message;
+    const bsToast = bootstrap.Toast.getOrCreateInstance(toastRoot);
+    bsToast.show();
+  }
 }
+
+// Expose functions to window for inline HTML events
+window.filterByUser = function (user) {
+  const select = document.getElementById("activityUser");
+  if (select) {
+    select.value = user;
+    renderActivityTable();
+    // Scroll to activity section
+    document.getElementById("activityTableBody")?.scrollIntoView({ behavior: 'smooth' });
+  }
+};
+
+window.openDeleteModal = openDeleteModal;
+window.openRestoreModal = openRestoreModal;
+window.openAdminViewTicketsModal = openAdminViewTicketsModal;
+window.showOnlineUsers = function () {
+  if (onlineUsersModal) onlineUsersModal.show();
+};
 
 // DOM elements
 const logoutBtn = document.getElementById("logoutBtn");
@@ -132,7 +158,7 @@ let chartDateOffset = 0; // 0 = current week, -7 = previous week, etc.
 // Load all data
 function loadData() {
   const entriesRef = collection(db, "entries");
-  
+
   onSnapshot(entriesRef, (snapshot) => {
     entries = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
     updateStats();
@@ -140,7 +166,10 @@ function loadData() {
     renderDeptTable();
     renderActivityTable();
     populateUserFilter();
+    renderActivityTable();
+    populateUserFilter();
     renderSalesChart();
+  }, (error) => {
   }, (error) => {
     console.error("Error loading data:", error);
     showToast("Failed to load data: " + error.message);
@@ -148,7 +177,7 @@ function loadData() {
 
   // Load deleted entries
   const deletedRef = collection(db, "deletedEntries");
-  
+
   onSnapshot(deletedRef, (snapshot) => {
     deletedEntries = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
     renderDeletedTable();
@@ -160,7 +189,7 @@ function loadData() {
 // Listen to online users
 function listenToOnlineUsers() {
   const onlineUsersRef = collection(db, "onlineUsers");
-  
+
   onSnapshot(onlineUsersRef, (snapshot) => {
     const now = Date.now();
     onlineUsers = snapshot.docs
@@ -171,7 +200,7 @@ function listenToOnlineUsers() {
         const lastSeen = user.lastSeen.toMillis ? user.lastSeen.toMillis() : user.lastSeen;
         return (now - lastSeen) < 120000; // 2 minutes
       });
-    
+
     updateOnlineUsersCount();
   }, (error) => {
     console.error("Error listening to online users:", error);
@@ -230,8 +259,8 @@ function renderUserTable() {
   entries.forEach(e => {
     const user = safeStr(e.soldBy || "Unknown");
     if (!userStats[user]) {
-      userStats[user] = { 
-        entries: 0, 
+      userStats[user] = {
+        entries: 0,
         totalSales: 0,
         lastActivity: null
       };
@@ -240,7 +269,7 @@ function renderUserTable() {
     const qty = toNumberSafe(e.quantity, 0);
     const price = toNumberSafe(e.unitPrice, UNIT_PRICE);
     userStats[user].totalSales += qty * price;
-    
+
     // Track last activity
     if (e.createdAt) {
       const activityDate = new Date(e.createdAt);
@@ -251,7 +280,7 @@ function renderUserTable() {
   });
 
   tbody.innerHTML = "";
-  
+
   Object.entries(userStats)
     .filter(([user]) => {
       // Include all users (including current user)
@@ -267,16 +296,16 @@ function renderUserTable() {
       // Check if this is the current user
       const isCurrentUser = currentUser && user === currentUser.email;
       // Extract name from email (part before @)
-      const displayName = user.includes('@') 
-        ? user.split('@')[0].replace(/\./g, ' ').split(' ').map(word => 
-            word.charAt(0).toUpperCase() + word.slice(1)
-          ).join(' ') 
+      const displayName = user.includes('@')
+        ? user.split('@')[0].replace(/\./g, ' ').split(' ').map(word =>
+          word.charAt(0).toUpperCase() + word.slice(1)
+        ).join(' ')
         : user;
-      
+
       // Determine role
       const role = adminEmails.includes(user) ? "Admin" : "Seller";
       const roleClass = role === "Admin" ? "bg-danger" : "bg-primary";
-      
+
       // Format last activity
       let lastActivityText = "—";
       if (stats.lastActivity) {
@@ -285,7 +314,7 @@ function renderUserTable() {
         const diffMins = Math.floor(diffMs / 60000);
         const diffHours = Math.floor(diffMs / 3600000);
         const diffDays = Math.floor(diffMs / 86400000);
-        
+
         if (diffMins < 1) {
           lastActivityText = "Just now";
         } else if (diffMins < 60) {
@@ -298,13 +327,13 @@ function renderUserTable() {
           lastActivityText = stats.lastActivity.toLocaleDateString();
         }
       }
-      
+
       const row = document.createElement("tr");
       // Add highlight class for current user
       if (isCurrentUser) {
         row.style.backgroundColor = "rgba(124, 58, 237, 0.08)";
       }
-      
+
       row.innerHTML = `
         <td><small>${user}${isCurrentUser ? ' <span class="badge bg-success" style="font-size: 0.65rem;">You</span>' : ''}</small></td>
         <td><strong>${displayName}</strong></td>
@@ -322,7 +351,7 @@ function renderUserTable() {
       `;
       tbody.appendChild(row);
     });
-    
+
   // Show message if no users found
   if (tbody.children.length === 0) {
     tbody.innerHTML = `
@@ -352,7 +381,7 @@ function renderDeptTable() {
   });
 
   tbody.innerHTML = "";
-  
+
   Object.entries(deptStats)
     .sort((a, b) => b[1].revenue - a[1].revenue)
     .forEach(([dept, stats]) => {
@@ -396,7 +425,7 @@ function renderActivityTable() {
     filtered = filtered.filter(e => {
       if (!e.createdAt) return false;
       const entryDate = new Date(e.createdAt);
-      
+
       if (filterVal === "today") {
         return entryDate.toDateString() === now.toDateString();
       } else if (filterVal === "week") {
@@ -419,7 +448,7 @@ function renderActivityTable() {
   const groupedEntries = {};
   filtered.forEach(entry => {
     let groupKey;
-    
+
     if (entry.batchId) {
       // New entries with batchId
       groupKey = entry.batchId;
@@ -429,7 +458,7 @@ function renderActivityTable() {
       const roundedTimestamp = Math.floor(timestamp / 60000) * 60000; // Group within same minute
       groupKey = `${entry.schoolId}_${roundedTimestamp}`;
     }
-    
+
     if (!groupedEntries[groupKey]) {
       groupedEntries[groupKey] = [];
     }
@@ -457,7 +486,7 @@ function renderActivityTable() {
   sortedBatches.forEach((batch, index) => {
     // Sort batch by ticket number
     batch.sort((a, b) => safeStr(a.ticketNumber).localeCompare(safeStr(b.ticketNumber)));
-    
+
     const firstEntry = batch[0];
     const totalQuantity = batch.length;
     const totalPrice = batch.reduce((sum, e) => {
@@ -465,7 +494,7 @@ function renderActivityTable() {
       const price = toNumberSafe(e.unitPrice, UNIT_PRICE);
       return sum + (qty * price);
     }, 0);
-    
+
     const timestamp = firstEntry.createdAt ? new Date(firstEntry.createdAt).toLocaleString() : "—";
     const soldByDisplay = firstEntry.soldByName || safeStr(firstEntry.soldBy || "—");
 
@@ -524,7 +553,7 @@ function populateUserFilter() {
   if (!select) return;
 
   const users = [...new Set(entries.map(e => e.soldBy).filter(Boolean))];
-  
+
   select.innerHTML = '<option value="">All Users</option>';
   users.forEach(user => {
     const option = document.createElement("option");
@@ -542,7 +571,7 @@ function openDeleteModal(id) {
 
 async function confirmDelete() {
   if (!deleteId) return;
-  
+
   try {
     // Get the entry data before deleting
     const entryToDelete = entries.find(e => e.id === deleteId);
@@ -562,10 +591,10 @@ async function confirmDelete() {
 
     // Move to deletedEntries collection
     await setDoc(doc(db, "deletedEntries", deleteId), deletedEntry);
-    
+
     // Delete from entries collection
     await deleteDoc(doc(db, "entries", deleteId));
-    
+
     if (deleteModal) deleteModal.hide();
     showToast("Entry moved to Recently Deleted");
   } catch (err) {
@@ -584,7 +613,7 @@ function openRestoreModal(id) {
 
 async function confirmRestore() {
   if (!restoreId) return;
-  
+
   try {
     // Get the deleted entry
     const entryToRestore = deletedEntries.find(e => e.id === restoreId);
@@ -597,7 +626,7 @@ async function confirmRestore() {
     if (entryToRestore.ticketDetails && entryToRestore.ticketDetails.length > 0) {
       // New grouped format - restore individual tickets
       const restorePromises = [];
-      
+
       for (const ticketDetail of entryToRestore.ticketDetails) {
         const restoredTicket = {
           schoolId: entryToRestore.schoolId,
@@ -618,7 +647,7 @@ async function confirmRestore() {
           batchId: entryToRestore.batchId,
           totalTicketsInBatch: entryToRestore.quantity
         };
-        
+
         // Use original ID if available, otherwise generate new one
         if (ticketDetail.id) {
           restorePromises.push(setDoc(doc(db, "entries", ticketDetail.id), restoredTicket));
@@ -626,10 +655,10 @@ async function confirmRestore() {
           restorePromises.push(addDoc(collection(db, "entries"), restoredTicket));
         }
       }
-      
+
       // Execute all restore operations
       await Promise.all(restorePromises);
-      
+
       showToast(`${entryToRestore.quantity} tickets restored successfully`);
     } else {
       // Old individual format - restore as single entry
@@ -638,13 +667,13 @@ async function confirmRestore() {
       // Move back to entries collection using original ID if available
       const restoreDocId = originalId || restoreId;
       await setDoc(doc(db, "entries", restoreDocId), restoredEntry);
-      
+
       showToast("Entry restored successfully");
     }
-    
+
     // Delete from deletedEntries collection
     await deleteDoc(doc(db, "deletedEntries", restoreId));
-    
+
     if (restoreModal) restoreModal.hide();
   } catch (err) {
     console.error("Restore failed:", err);
@@ -676,12 +705,12 @@ function openClearAllModal() {
 
 async function confirmClearAll() {
   try {
-    const deletePromises = deletedEntries.map(entry => 
+    const deletePromises = deletedEntries.map(entry =>
       deleteDoc(doc(db, "deletedEntries", entry.id))
     );
-    
+
     await Promise.all(deletePromises);
-    
+
     if (clearAllModal) clearAllModal.hide();
     showToast(`Cleared ${deletePromises.length} deleted entries permanently`);
   } catch (err) {
@@ -727,12 +756,12 @@ function renderDeletedTable() {
       const name = safeStr(e.name).toLowerCase();
       const lastname = safeStr(e.lastname).toLowerCase();
       const fullName = `${name} ${lastname}`;
-      return schoolId.includes(searchVal) || 
-             ticketNumber.includes(searchVal) || 
-             ticketNumbers.includes(searchVal) || 
-             fullName.includes(searchVal) || 
-             name.includes(searchVal) || 
-             lastname.includes(searchVal);
+      return schoolId.includes(searchVal) ||
+        ticketNumber.includes(searchVal) ||
+        ticketNumbers.includes(searchVal) ||
+        fullName.includes(searchVal) ||
+        name.includes(searchVal) ||
+        lastname.includes(searchVal);
     });
   }
 
@@ -750,15 +779,15 @@ function renderDeletedTable() {
 
   sorted.forEach((e, index) => {
     const qty = toNumberSafe(e.quantity, 0);
-    
+
     // Handle both old individual entries and new grouped entries
     let price, total, ticketNumberDisplay;
-    
+
     if (e.totalPrice) {
       // New grouped entry format
       total = toNumberSafe(e.totalPrice, 0);
       price = e.unitPrice === "Mixed" ? "Mixed" : toNumberSafe(e.unitPrice, UNIT_PRICE);
-      
+
       // Create ticket number display
       if (qty === 1) {
         // Single ticket - show ticket number directly
@@ -780,7 +809,7 @@ function renderDeletedTable() {
       total = qty * price;
       ticketNumberDisplay = safeStr(e.ticketNumber);
     }
-    
+
     const deletedAt = e.deletedAt ? new Date(e.deletedAt).toLocaleString() : "—";
     const deletedBy = e.deletedByName || e.deletedBy || "—";
 
@@ -900,11 +929,11 @@ function openAdminDeletedViewTicketsModal(deletedEntry) {
     <h6 class="fw-bold mb-3">Deleted Ticket Numbers</h6>
     <div class="row g-2">
       ${ticketDetails.map(ticketDetail => {
-        const earlyBirdBadge = ticketDetail.isEarlyBird 
-          ? '<span class="badge bg-success ms-2" style="font-size: 0.7rem;">Early Bird</span>' 
-          : '<span class="badge bg-secondary ms-2" style="font-size: 0.7rem;">Regular</span>';
-        
-        return `
+    const earlyBirdBadge = ticketDetail.isEarlyBird
+      ? '<span class="badge bg-success ms-2" style="font-size: 0.7rem;">Early Bird</span>'
+      : '<span class="badge bg-secondary ms-2" style="font-size: 0.7rem;">Regular</span>';
+
+    return `
           <div class="col-md-6 col-lg-4">
             <div class="card border-0 shadow-sm" style="background-color: #fee2e2;">
               <div class="card-body py-2 px-3">
@@ -917,7 +946,7 @@ function openAdminDeletedViewTicketsModal(deletedEntry) {
             </div>
           </div>
         `;
-      }).join('')}
+  }).join('')}
     </div>
   `;
 
@@ -934,16 +963,16 @@ function openAdminViewTicketsModal(schoolId, timestamp) {
   // Find all tickets in the same batch by schoolId and timestamp
   const targetTime = new Date(timestamp).getTime();
   const roundedTimestamp = Math.floor(targetTime / 60000) * 60000;
-  
+
   let batchEntries = [];
-  
+
   // First try to find by batchId
-  const entryWithBatchId = entries.find(e => 
-    safeStr(e.schoolId) === schoolId && 
-    e.createdAt && 
+  const entryWithBatchId = entries.find(e =>
+    safeStr(e.schoolId) === schoolId &&
+    e.createdAt &&
     Math.abs(new Date(e.createdAt).getTime() - targetTime) < 60000
   );
-  
+
   if (entryWithBatchId && entryWithBatchId.batchId) {
     batchEntries = entries.filter(e => e.batchId === entryWithBatchId.batchId);
   } else {
@@ -970,7 +999,7 @@ function openAdminViewTicketsModal(schoolId, timestamp) {
   if (modalContent) {
     const firstEntry = batchEntries[0];
     const totalPrice = batchEntries.reduce((sum, e) => sum + toNumberSafe(e.unitPrice, UNIT_PRICE), 0);
-    
+
     modalContent.innerHTML = `
       <div class="mb-4">
         <h6 class="fw-bold mb-3">Purchase Details</h6>
@@ -991,11 +1020,11 @@ function openAdminViewTicketsModal(schoolId, timestamp) {
       <h6 class="fw-bold mb-3">Ticket Numbers</h6>
       <div class="row g-2">
         ${batchEntries.map(ticketEntry => {
-          const earlyBirdBadge = ticketEntry.isEarlyBird 
-            ? '<span class="badge bg-success ms-2" style="font-size: 0.7rem;">Early Bird</span>' 
-            : '<span class="badge bg-secondary ms-2" style="font-size: 0.7rem;">Regular</span>';
-          
-          return `
+      const earlyBirdBadge = ticketEntry.isEarlyBird
+        ? '<span class="badge bg-success ms-2" style="font-size: 0.7rem;">Early Bird</span>'
+        : '<span class="badge bg-secondary ms-2" style="font-size: 0.7rem;">Regular</span>';
+
+      return `
             <div class="col-md-6 col-lg-4">
               <div class="card border-0 shadow-sm">
                 <div class="card-body py-2 px-3">
@@ -1008,7 +1037,7 @@ function openAdminViewTicketsModal(schoolId, timestamp) {
               </div>
             </div>
           `;
-        }).join('')}
+    }).join('')}
       </div>
     `;
   }
@@ -1017,7 +1046,7 @@ function openAdminViewTicketsModal(schoolId, timestamp) {
 }
 
 // Global filter function
-window.filterByUser = function(user) {
+window.filterByUser = function (user) {
   const select = document.getElementById("activityUser");
   if (select) {
     select.value = user;
@@ -1037,12 +1066,12 @@ function showOnlineUsers() {
   } else {
     const list = document.createElement("div");
     list.className = "list-group";
-    
+
     onlineUsers.forEach(user => {
       const lastSeen = user.lastSeen?.toMillis ? user.lastSeen.toMillis() : user.lastSeen;
       const timeAgo = lastSeen ? Math.floor((Date.now() - lastSeen) / 1000) : 0;
       const timeText = timeAgo < 60 ? "Just now" : `${Math.floor(timeAgo / 60)}m ago`;
-      
+
       const item = document.createElement("div");
       item.className = "list-group-item d-flex justify-content-between align-items-center";
       item.innerHTML = `
@@ -1058,7 +1087,7 @@ function showOnlineUsers() {
       `;
       list.appendChild(item);
     });
-    
+
     modalBody.appendChild(list);
   }
 
@@ -1077,36 +1106,36 @@ function renderSalesChart() {
   const days = [];
   const salesData = [];
   const revenueData = [];
-  
+
   const startDate = new Date();
   const endDate = new Date();
-  
+
   for (let i = 6; i >= 0; i--) {
     const date = new Date();
     date.setDate(date.getDate() - i + chartDateOffset);
     const dateStr = date.toISOString().split('T')[0];
     const dayName = date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-    
+
     if (i === 6) startDate.setTime(date.getTime());
     if (i === 0) endDate.setTime(date.getTime());
-    
+
     days.push(dayName);
-    
+
     // Count entries and revenue for this day
     const dayEntries = entries.filter(e => {
       if (!e.createdAt) return false;
       const entryDate = new Date(e.createdAt).toISOString().split('T')[0];
       return entryDate === dateStr;
     });
-    
+
     salesData.push(dayEntries.length);
-    
+
     const dayRevenue = dayEntries.reduce((sum, e) => {
       const qty = toNumberSafe(e.quantity, 0);
       const price = toNumberSafe(e.unitPrice, UNIT_PRICE);
       return sum + (qty * price);
     }, 0);
-    
+
     revenueData.push(dayRevenue);
   }
 
@@ -1209,7 +1238,7 @@ function renderSalesChart() {
             size: 13
           },
           callbacks: {
-            label: function(context) {
+            label: function (context) {
               let label = context.dataset.label || '';
               if (label) {
                 label += ': ';
@@ -1247,7 +1276,7 @@ function renderSalesChart() {
               weight: '600'
             },
             stepSize: 1,
-            callback: function(value) {
+            callback: function (value) {
               if (Number.isInteger(value)) {
                 return value;
               }
@@ -1276,7 +1305,7 @@ function renderSalesChart() {
             font: {
               weight: '600'
             },
-            callback: function(value) {
+            callback: function (value) {
               return '₱' + value.toLocaleString();
             }
           }
