@@ -34,7 +34,8 @@ const db = getFirestore(app);
 
 // Admin emails
 const adminEmails = [
-  "jasperace.lapitan@lorma.edu"
+  "jasperace.lapitan@lorma.edu",
+  "jsoriano@lorma.edu"
 ];
 
 const UNIT_PRICE = 680;
