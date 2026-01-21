@@ -48,12 +48,13 @@ const allowedEmails = [
   "almiravictoria.rendon@lorma.edu",
   "princessangel.gacayan@lorma.edu",
   "finariki.soriano@lorma.edu",
-  "myca.oribio@lorma.edu"
+  "jsoriano@lorma.edu"
 ];
 
 // Admin emails
 const adminEmails = [
-  "jasperace.lapitan@lorma.edu"
+  "jasperace.lapitan@lorma.edu",
+  "jsoriano@lorma.edu"
 ];
 
 // --------------------- Helpers ---------------------
