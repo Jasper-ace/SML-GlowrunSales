@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>Electronic Receipt | SML Organization</title>
+    <link rel="icon" type="image/x-icon" href="favicon.ico?v=3">
+    <link rel="icon" type="image/png" sizes="64x64" href="assets/green.png?v=3">
+
+    <link rel="apple-touch-icon" sizes="180x180" href="assets/green.png">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&family=Inter:wght@400;500;600&display=swap"
+        rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4c1d95 100%);
+            font-family: 'Inter', 'Montserrat', 'Segoe UI', sans-serif;
+            position: relative;
+            padding: 20px;
+        }
+
+        /* Video Background */
+        .video-background {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            overflow: hidden;
+        }
+
+        .video-background video {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            min-width: 100%;
+            min-height: 100%;
+            width: auto;
+            height: auto;
+            transform: translate(-50%, -50%);
+            object-fit: cover;
+        }
+
+        .video-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, rgba(30, 27, 75, 0.9) 0%, rgba(76, 29, 149, 0.9) 100%);
+            z-index: 1;
+        }
+
+        /* Main Container */
+        .main-container {
+            max-width: 500px;
+            width: 100%;
+            z-index: 10;
+            position: relative;
+        }
+
+        /* Card Style */
+        .receipt-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            padding: 2rem;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            animation: fadeIn 0.6s ease-out;
+        }
+
+        .brand-section {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .org-logo {
+            width: 60px;
+            height: 60px;
+            margin-bottom: 1rem;
+            filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1));
+        }
+
+        .page-title {
+            font-weight: 800;
+            font-size: 1.5rem;
+            color: #4c1d95;
+            margin-bottom: 0.5rem;
+        }
+
+        .form-label {
+            font-weight: 600;
+            color: #4b5563;
+            font-size: 0.9rem;
+        }
+
+        .form-control {
+            border-radius: 12px;
+            padding: 0.8rem 1rem;
+            border: 1px solid #e5e7eb;
+            font-size: 1rem;
+            transition: all 0.2s;
+        }
+
+        .form-control:focus {
+            border-color: #8b5cf6;
+            box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.1);
+        }
+
+        .btn-search {
+            background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+            color: white;
+            border: none;
+            padding: 1rem;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 1rem;
+            width: 100%;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 1rem;
+            box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
+        }
+
+        .btn-search:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(124, 58, 237, 0.4);
+        }
+
+        .btn-search:active {
+            transform: translateY(0);
+        }
+
+        /* Receipt Result */
+        #receiptResult {
+            display: none;
+            margin-top: 2rem;
+            background: white;
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px dashed #cbd5e1;
+            position: relative;
+        }
+
+        .receipt-header {
+            background: #f8fafc;
+            padding: 1.5rem 1.5rem 1rem;
+            text-align: center;
+            border-bottom: 1px dashed #e2e8f0;
+        }
+
+        .receipt-body {
+            padding: 1.5rem;
+        }
+
+        .receipt-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.8rem;
+            font-size: 0.95rem;
+            color: #334155;
+        }
+
+        .receipt-row.total {
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 2px solid #f1f5f9;
+            font-weight: 700;
+            font-size: 1.1rem;
+            color: #1e1b4b;
+        }
+
+        .receipt-tickets {
+            margin-top: 1rem;
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            border-radius: 12px;
+            padding: 1rem;
+        }
+
+        .ticket-badge {
+            display: inline-block;
+            background: #ffffff;
+            border: 1px solid #22c55e;
+            color: #15803d;
+            padding: 4px 10px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin: 2px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .receipt-footer {
+            background: #f8fafc;
+            padding: 1rem;
+            text-align: center;
+            font-size: 0.8rem;
+            color: #64748b;
+            border-top: 1px dashed #e2e8f0;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 50px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .status-paid {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .alert-custom {
+            font-size: 0.9rem;
+            border-radius: 12px;
+            padding: 1rem;
+            margin-top: 1.5rem;
+            display: none;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Video Background -->
+    <div class="video-background">
+        <video autoplay muted loop playsinline>
+            <source src="assets/videobackground.mp4" type="video/mp4">
+        </video>
+        <div class="video-overlay"></div>
+    </div>
+
+    <div class="main-container">
+        <div class="receipt-card">
+            <div class="brand-section">
+                <img src="assets/green.png" alt="SML Logo" class="org-logo" />
+                <h1 class="page-title">Receipt Lookup</h1>
+                <p class="text-muted small">Enter your details to view your transaction</p>
+            </div>
+
+            <form id="receiptForm">
+                <div class="mb-3">
+                    <label for="schoolId" class="form-label">ID Number</label>
+                    <input type="number" class="form-control" id="schoolId" placeholder="e.g. 20231234" required>
+                </div>
+                <div class="row g-2">
+                    <div class="col-6 mb-3">
+                        <label for="firstName" class="form-label">First Name</label>
+                        <input type="text" class="form-control" id="firstName" placeholder="Juan" required>
+                    </div>
+                    <div class="col-6 mb-3">
+                        <label for="lastName" class="form-label">Last Name</label>
+                        <input type="text" class="form-control" id="lastName" placeholder="Dela Cruz" required>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-search" id="searchBtn">
+                    <span id="btnText">Find My Receipt</span>
+                    <span id="btnSpinner" class="spinner-border spinner-border-sm ms-2 d-none" role="status"
+                        aria-hidden="true"></span>
+                </button>
+            </form>
+
+            <div id="errorAlert" class="alert alert-danger alert-custom" role="alert">
+                ❌ No records found matching these details. Please check your spelling and try again.
+            </div>
+
+            <div id="receiptResult">
+                <div class="receipt-header">
+                    <h5 class="fw-bold mb-1" style="color: #4b5563;">Glow Run 2026</h5>
+                    <small class="text-muted d-block mb-2">Electronic Official Receipt</small>
+                    <span class="status-badge status-paid">Paid</span>
+                </div>
+                <div class="receipt-body">
+                    <div class="receipt-row">
+                        <span class="text-muted">Student Name</span>
+                        <span class="fw-semibold text-end" id="rName">Juan Dela Cruz</span>
+                    </div>
+                    <div class="receipt-row">
+                        <span class="text-muted">ID Number</span>
+                        <span class="fw-semibold" id="rId">20231234</span>
+                    </div>
+                    <div class="receipt-row">
+                        <span class="text-muted">Department</span>
+                        <span class="fw-semibold" id="rDept">CCSE</span>
+                    </div>
+                    <div class="receipt-row">
+                        <span class="text-muted">Year Level</span>
+                        <span class="fw-semibold" id="rYrlvl">IV</span>
+                    </div>
+                    <div class="receipt-row">
+                        <span class="text-muted">Date Paid</span>
+                        <span class="fw-semibold" id="rDate">Jan 25, 2026</span>
+                    </div>
+
+                    <div class="receipt-tickets text-center">
+                        <div class="small fw-bold text-success mb-2">TICKET NUMBERS</div>
+                        <div id="rTickets">
+                            <!-- Tickets generated here -->
+                        </div>
+                    </div>
+
+                    <div class="receipt-row total">
+                        <span>Total Amount</span>
+                        <span style="color: #7c3aed;" id="rTotal">₱300.00</span>
+                    </div>
+                </div>
+                <div class="receipt-footer">
+                    <p class="mb-0">Thank you for your support!</p>
+                    <small class="text-muted d-block mt-1">SML Organization • Lorma Colleges</small>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="text-center mt-4">
+            <a href="index.html" class="text-white-50 text-decoration-none small">Back to Login</a>
+        </div>
+    </div>
+
+    <script src="receipt.js" type="module"></script>
+</body>
+
+</html>

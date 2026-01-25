@@ -60,7 +60,9 @@ const adminEmails = [
 ];
 
 // --------------------- Helpers ---------------------
-const UNIT_PRICE = 700;
+const PRICE_STUDENT = 300;
+const PRICE_OUTSIDER = 700;
+const UNIT_PRICE = PRICE_STUDENT;
 
 
 // Function to get the appropriate price based on order
@@ -103,6 +105,57 @@ function showToast(message, type = "info") {
     bsToast.show();
   } catch (err) {
     console.log("Toast error:", err);
+  }
+}
+
+
+// Function to toggle Year Level visibility and options based on Department
+function toggleYearLevel(deptSelectId, yrLvlSelectId) {
+  const deptSelect = document.getElementById(deptSelectId);
+  const yrLvlSelect = document.getElementById(yrLvlSelectId);
+
+  if (!deptSelect || !yrLvlSelect) return;
+
+  const container = yrLvlSelect.closest(".mb-3");
+  if (!container) return;
+
+  const dept = deptSelect.value;
+  let newOptions = "";
+  let mode = "COLLEGE";
+
+  if (dept === "Faculty & Staff") {
+    container.style.display = "none";
+    yrLvlSelect.value = "";
+    yrLvlSelect.required = false;
+    return;
+  }
+
+  // Show the container for everyone else
+  container.style.display = "block";
+  yrLvlSelect.required = true;
+
+  if (dept === "BES") {
+    mode = "BES";
+    newOptions = `
+      <option value="">Select Year Level</option>
+      <option value="JHS">JHS (Junior Highschool)</option>
+      <option value="SHS">SHS (Senior Highschool)</option>
+    `;
+  } else {
+    mode = "COLLEGE";
+    newOptions = `
+      <option value="">Select Year Level</option>
+      <option value="I">I</option>
+      <option value="II">II</option>
+      <option value="III">III</option>
+      <option value="IV">IV</option>
+    `;
+  }
+
+  // Only update if mode changed to avoid resetting selection unnecessarily
+  if (yrLvlSelect.getAttribute("data-mode") !== mode) {
+    yrLvlSelect.innerHTML = newOptions;
+    yrLvlSelect.setAttribute("data-mode", mode);
   }
 }
 
@@ -192,6 +245,17 @@ document.addEventListener("DOMContentLoaded", () => {
   const quantityInput = document.getElementById("quantity");
   if (quantityInput) {
     quantityInput.addEventListener("input", handleQuantityChange);
+  }
+
+  // Add listeners for Department changes to toggle Year Level
+  const deptSelect = document.getElementById("department");
+  if (deptSelect) {
+    deptSelect.addEventListener("change", () => toggleYearLevel("department", "yrlvl"));
+  }
+
+  const editDeptSelect = document.getElementById("editDepartment");
+  if (editDeptSelect) {
+    editDeptSelect.addEventListener("change", () => toggleYearLevel("editDepartment", "editYrlvl"));
   }
 });
 
@@ -551,7 +615,21 @@ async function handleAddEntry(e) {
       // 2. Prepare all new entry writes
       const newEntries = [];
       for (let i = 0; i < quantity; i++) {
+        // Check for special department pricing
+        const isSpecialDept = ["BES", "Faculty & Staff"].includes(department);
+        // Regular logic: Ticket 1 = Student Price, others = Outsider Price
+        // Special Dept logic: All tickets = Outsider Price
+        const price = isSpecialDept ? PRICE_OUTSIDER : ((i === 0) ? PRICE_STUDENT : PRICE_OUTSIDER);
+
+        let type = "Outsider";
+        if (isSpecialDept) {
+          type = department === "BES" ? "Basic Education" : "Faculty/Staff";
+        } else {
+          type = (i === 0) ? "College Student" : "Outsider";
+        }
+
         const sequenceNum = currentSequence + i + 1;
+
         const entry = {
           schoolId: schoolIdVal,
           ticketNumber: ticketNumbers[i],
@@ -560,7 +638,8 @@ async function handleAddEntry(e) {
           yrlvl,
           department,
           quantity: 1,
-          unitPrice: getTicketPrice(),
+          unitPrice: price,
+          ticketType: type,
           isEarlyBird: false,
           ticketSequenceNumber: sequenceNum,
           soldStatus: soldStatus,
@@ -694,6 +773,19 @@ async function handleSaveEdit(e) {
 
     // Update existing entries (keep their original prices and early bird status)
     for (let i = 0; i < batchEntries.length; i++) {
+      // Check for special department pricing
+      const isSpecialDept = ["BES", "Faculty & Staff"].includes(updatedDepartment);
+
+      // Re-evaluate price and type based on the new department and its index
+      const price = isSpecialDept ? PRICE_OUTSIDER : ((i === 0) ? PRICE_STUDENT : PRICE_OUTSIDER);
+
+      let type = "Outsider";
+      if (isSpecialDept) {
+        type = updatedDepartment === "BES" ? "Basic Education" : "Faculty/Staff";
+      } else {
+        type = (i === 0) ? "College Student" : "Outsider";
+      }
+
       const updated = {
         schoolId: updatedSchoolId,
         ticketNumber: updatedTicketNumbers[i],
@@ -702,8 +794,9 @@ async function handleSaveEdit(e) {
         yrlvl: updatedYrlvl,
         department: updatedDepartment,
         quantity: 1, // Each entry represents 1 ticket
-        // Keep original price and early bird status for existing tickets
-        unitPrice: batchEntries[i].unitPrice,
+        // Update price and type based on new department
+        unitPrice: price,
+        ticketType: type,
         isEarlyBird: batchEntries[i].isEarlyBird,
         soldStatus: updatedSoldStatus,
         soldAt: batchEntries[i].soldAt || new Date().toISOString(), // Keep original date or set new if missing
@@ -722,6 +815,17 @@ async function handleSaveEdit(e) {
       const ticketSequenceNumber = currentTicketCount + (i - batchEntries.length);
       const ticketPrice = getPriceForTicketSequence(ticketSequenceNumber);
 
+      // Check for special department pricing
+      const isSpecialDept = ["BES", "Faculty & Staff"].includes(updatedDepartment);
+      const price = isSpecialDept ? PRICE_OUTSIDER : ((i === 0) ? PRICE_STUDENT : PRICE_OUTSIDER);
+
+      let type = "Outsider";
+      if (isSpecialDept) {
+        type = updatedDepartment === "BES" ? "Basic Education" : "Faculty/Staff";
+      } else {
+        type = (i === 0) ? "College Student" : "Outsider";
+      }
+
       const newEntry = {
         schoolId: updatedSchoolId,
         ticketNumber: updatedTicketNumbers[i],
@@ -730,7 +834,8 @@ async function handleSaveEdit(e) {
         yrlvl: updatedYrlvl,
         department: updatedDepartment,
         quantity: 1, // Each entry represents 1 ticket
-        unitPrice: ticketPrice,
+        unitPrice: price,
+        ticketType: type,
         isEarlyBird: false,
         soldStatus: updatedSoldStatus,
         soldAt: new Date().toISOString(), // Always sold per policy
@@ -1060,8 +1165,9 @@ function openEditModal(id) {
   editSchoolIdInput.value = safeStr(entry.schoolId);
   document.getElementById("editName").value = safeStr(entry.name);
   document.getElementById("editLastname").value = safeStr(entry.lastname);
-  document.getElementById("editYrlvl").value = safeStr(entry.yrlvl);
   document.getElementById("editDepartment").value = safeStr(entry.department);
+  toggleYearLevel("editDepartment", "editYrlvl"); // Update visibility/options based on department first
+  document.getElementById("editYrlvl").value = safeStr(entry.yrlvl); // Then set the value
 
   const editQuantityInput = document.getElementById("editQuantity");
   editQuantityInput.value = batchEntries.length;
@@ -1209,9 +1315,25 @@ function openViewTicketsModal(id) {
       <h6 class="fw-bold mb-3">Ticket Numbers</h6>
       <div class="row g-2">
         ${batchEntries.map(ticketEntry => {
+      let typeLabel = ticketEntry.ticketType || "Regular";
+      let typeClass = "bg-secondary";
+
+      if (ticketEntry.ticketType) {
+        typeClass = ticketEntry.ticketType === "College Student" ? "bg-info" : "bg-warning text-dark";
+      } else {
+        if (ticketEntry.unitPrice == 300) {
+          typeLabel = "College Student";
+          typeClass = "bg-info";
+        } else if (ticketEntry.unitPrice == 700) {
+          typeLabel = "Outsider";
+          typeClass = "bg-warning text-dark";
+        }
+      }
+
+      const typeBadge = `<span class="badge ${typeClass} ms-2" style="font-size: 0.7rem;">${typeLabel}</span>`;
       const earlyBirdBadge = ticketEntry.isEarlyBird
         ? '<span class="badge bg-success ms-2" style="font-size: 0.7rem;">Early Bird</span>'
-        : '<span class="badge bg-secondary ms-2" style="font-size: 0.7rem;">Regular</span>';
+        : '';
 
       return `
             <div class="col-md-6 col-lg-4">
@@ -1219,7 +1341,7 @@ function openViewTicketsModal(id) {
                 <div class="card-body py-2 px-3">
                   <div class="d-flex justify-content-between align-items-center">
                     <span class="fw-bold" style="font-size: 0.9rem;">Ticket ${safeStr(ticketEntry.ticketNumber)}</span>
-                    ${earlyBirdBadge}
+                    <div>${typeBadge}${earlyBirdBadge}</div>
                   </div>
                   <small class="text-muted">${formatCurrency(ticketEntry.unitPrice)}</small>
                 </div>
@@ -1456,7 +1578,7 @@ function renderTable() {
       <td class="text-center">${ticketNumberDisplay}</td>
       <td>${safeStr(firstEntry.name)}</td>
       <td>${safeStr(firstEntry.lastname)}</td>
-      <td>${safeStr(firstEntry.yrlvl)}</td>
+      <td>${(safeStr(firstEntry.department) === "Faculty & Staff" || !safeStr(firstEntry.yrlvl)) ? "—" : safeStr(firstEntry.yrlvl)}</td>
       <td>${safeStr(firstEntry.department)}</td>
       <td class="text-center">${totalQuantity}</td>
       <td>${unitPriceDisplay}</td>

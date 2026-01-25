@@ -38,7 +38,9 @@ const adminEmails = [
   "jsoriano@lorma.edu"
 ];
 
-const UNIT_PRICE = 700;
+const PRICE_STUDENT = 300;
+const PRICE_OUTSIDER = 700;
+const UNIT_PRICE = PRICE_STUDENT;
 let entries = [];
 let deletedEntries = [];
 let currentUser = null;
@@ -86,7 +88,8 @@ window.filterByUser = function (user) {
 window.openDeleteModal = openDeleteModal;
 window.openRestoreModal = openRestoreModal;
 window.openAdminViewTicketsModal = openAdminViewTicketsModal;
-window.openPermanentDeleteModal = openPermanentDeleteModal; // Expose new function
+window.openPermanentDeleteModal = openPermanentDeleteModal;
+window.openUserStatsModal = openUserStatsModal; // New function
 window.showOnlineUsers = function () {
   if (onlineUsersModal) onlineUsersModal.show();
 };
@@ -103,14 +106,16 @@ const clearAllModalEl = document.getElementById("clearAllModal");
 const confirmClearAllBtn = document.getElementById("confirmClearAllBtn");
 const clearDeletedBtn = document.getElementById("clearDeletedBtn");
 const adminViewTicketsModalEl = document.getElementById("adminViewTicketsModal");
-const permanentDeleteModalEl = document.getElementById("permanentDeleteModal"); // New Element
-const confirmPermanentDeleteBtn = document.getElementById("confirmPermanentDeleteBtn"); // New Button
+const permanentDeleteModalEl = document.getElementById("permanentDeleteModal");
+const confirmPermanentDeleteBtn = document.getElementById("confirmPermanentDeleteBtn");
+const userStatsModalEl = document.getElementById("userStatsModal"); // New Element
 
 const deleteModal = deleteModalEl ? new bootstrap.Modal(deleteModalEl) : null;
 const restoreModal = restoreModalEl ? new bootstrap.Modal(restoreModalEl) : null;
 const clearAllModal = clearAllModalEl ? new bootstrap.Modal(clearAllModalEl) : null;
 const adminViewTicketsModal = adminViewTicketsModalEl ? new bootstrap.Modal(adminViewTicketsModalEl) : null;
-const permanentDeleteModal = permanentDeleteModalEl ? new bootstrap.Modal(permanentDeleteModalEl) : null; // New Modal
+const permanentDeleteModal = permanentDeleteModalEl ? new bootstrap.Modal(permanentDeleteModalEl) : null;
+const userStatsModal = userStatsModalEl ? new bootstrap.Modal(userStatsModalEl) : null; // New Modal
 
 // Online Users Modal
 const onlineUsersModalEl = document.getElementById("onlineUsersModal");
@@ -354,7 +359,7 @@ function renderUserTable() {
         <td class="text-center">${stats.entries}</td>
         <td class="text-center">${formatCurrency(stats.totalSales)}</td>
         <td class="text-center">
-          <button class="btn btn-sm btn-info" onclick="filterByUser('${user}')">📊 View</button>
+          <button class="btn btn-sm btn-info" onclick="openUserStatsModal('${user}')">📊 View Stats</button>
         </td>
       `;
       tbody.appendChild(row);
@@ -571,6 +576,151 @@ function populateUserFilter() {
   });
 }
 
+// Open User Stats Modal
+function openUserStatsModal(userEmail) {
+  if (!userStatsModal) return;
+
+  // Set User Name in Title
+  const displayName = userEmail.includes('@')
+    ? userEmail.split('@')[0].replace(/\./g, ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+    : userEmail;
+
+  const titleEl = document.getElementById("userStatsName");
+  if (titleEl) titleEl.textContent = displayName;
+
+  // Filter entries for this user
+  const userEntries = entries.filter(e => safeStr(e.soldBy) === userEmail);
+
+  // 1. Calculate Daily Stats
+  const dailyStats = {};
+  userEntries.forEach(e => {
+    if (!e.createdAt) return;
+    const dateKey = new Date(e.createdAt).toLocaleDateString(); // e.g., "1/25/2026"
+
+    if (!dailyStats[dateKey]) {
+      dailyStats[dateKey] = {
+        date: new Date(e.createdAt),
+        quantity: 0,
+        revenue: 0
+      };
+    }
+
+    const qty = toNumberSafe(e.quantity, 0);
+    const price = toNumberSafe(e.unitPrice, UNIT_PRICE);
+
+    dailyStats[dateKey].quantity += qty;
+    dailyStats[dateKey].revenue += (qty * price);
+  });
+
+  // Render Daily Table
+  const dailyTbody = document.getElementById("userDailyTableBody");
+  const dailyTotalQtyEl = document.getElementById("userDailyTotalQty");
+  const dailyTotalRevEl = document.getElementById("userDailyTotalRev");
+
+  if (dailyTbody) {
+    dailyTbody.innerHTML = "";
+
+    // Sort by date descending
+    const sortedDays = Object.values(dailyStats).sort((a, b) => b.date - a.date);
+
+    let totalQty = 0;
+    let totalRev = 0;
+
+    if (sortedDays.length === 0) {
+      dailyTbody.innerHTML = `<tr><td colspan="3" class="text-center text-muted">No sales records found</td></tr>`;
+    } else {
+      sortedDays.forEach(stat => {
+        totalQty += stat.quantity;
+        totalRev += stat.revenue;
+
+        const row = document.createElement("tr");
+        const formattedDate = stat.date.toLocaleDateString(undefined, {
+          weekday: 'short', year: 'numeric', month: 'short', day: 'numeric'
+        });
+
+        row.innerHTML = `
+          <td class="ps-3 fw-medium">${formattedDate}</td>
+          <td class="text-center">${stat.quantity}</td>
+          <td class="text-end pe-3 text-success fw-medium">${formatCurrency(stat.revenue)}</td>
+        `;
+        dailyTbody.appendChild(row);
+      });
+    }
+
+    if (dailyTotalQtyEl) dailyTotalQtyEl.textContent = totalQty;
+    if (dailyTotalRevEl) dailyTotalRevEl.textContent = formatCurrency(totalRev);
+  }
+
+  // 2. Render History Table
+  const historyTbody = document.getElementById("userHistoryTableBody");
+  const historySearch = document.getElementById("userHistorySearch");
+
+  const renderHistory = (records) => {
+    if (!historyTbody) return;
+    historyTbody.innerHTML = "";
+
+    if (records.length === 0) {
+      historyTbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted">No transactions found</td></tr>`;
+      return;
+    }
+
+    // Sort entries descending
+    const sortedEntries = [...records].sort((a, b) => {
+      const da = a.createdAt ? new Date(a.createdAt) : new Date(0);
+      const db = b.createdAt ? new Date(b.createdAt) : new Date(0);
+      return db - da;
+    });
+
+    sortedEntries.forEach(e => {
+      const time = e.createdAt ? new Date(e.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "—";
+      const ticket = safeStr(e.ticketNumber) || "—";
+
+      let typeBadge = "";
+      if (e.ticketType === "College Student" || e.unitPrice == 300) {
+        typeBadge = `<span class="badge bg-info text-dark" style="font-size:0.75rem">Student</span>`;
+      } else {
+        typeBadge = `<span class="badge bg-warning text-dark" style="font-size:0.75rem">Outsider</span>`;
+      }
+      if (e.isEarlyBird) {
+        typeBadge += ` <span class="badge bg-success" style="font-size:0.75rem">⚡</span>`;
+      }
+
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td class="ps-3 text-muted small">${time}</td>
+        <td>${safeStr(e.schoolId)}</td>
+        <td class="text-center fw-bold">${ticket}</td>
+        <td>${safeStr(e.name)} ${safeStr(e.lastname)}</td>
+        <td>${typeBadge}</td>
+        <td class="text-end pe-3">${formatCurrency(e.unitPrice)}</td>
+      `;
+      historyTbody.appendChild(row);
+    });
+  };
+
+  // Initial render
+  renderHistory(userEntries);
+
+  // Attach search listener
+  if (historySearch) {
+    historySearch.value = "";
+    historySearch.oninput = (e) => {
+      const val = e.target.value.toLowerCase();
+      const filtered = userEntries.filter(entry => {
+        const sid = safeStr(entry.schoolId).toLowerCase();
+        const ticket = safeStr(entry.ticketNumber).toLowerCase();
+        const name = safeStr(entry.name).toLowerCase();
+        const lastname = safeStr(entry.lastname).toLowerCase();
+        const fullname = `${name} ${lastname}`;
+        return sid.includes(val) || ticket.includes(val) || name.includes(val) || lastname.includes(val) || fullname.includes(val);
+      });
+      renderHistory(filtered);
+    };
+  }
+
+  userStatsModal.show();
+}
+
 // Delete functions
 function openDeleteModal(id) {
   deleteId = id;
@@ -633,7 +783,7 @@ async function confirmDelete() {
           if (value === null || typeof value !== 'object') {
             sanitized[key] = value;
           } else if (Array.isArray(value)) {
-            sanitized[key] = value.map(item => 
+            sanitized[key] = value.map(item =>
               typeof item === 'object' ? sanitizeForFirestore(item) : item
             );
           } else {
@@ -652,7 +802,7 @@ async function confirmDelete() {
       lastname: safeStr(entryToDelete.lastname),
       yrlvl: safeStr(entryToDelete.yrlvl),
       department: safeStr(entryToDelete.department),
-      
+
       // Batch information
       quantity: batchEntries.length,
       ticketNumbers: ticketNumbers,
@@ -660,12 +810,12 @@ async function confirmDelete() {
       totalPrice: totalPrice,
       batchId: batchId,
       originalIds: batchEntries.map(e => safeStr(e.id)),
-      
+
       // Deletion metadata
       deletedAt: new Date().toISOString(),
       deletedBy: currentUser ? currentUser.email : "Unknown",
       deletedByName: currentUser ? (currentUser.displayName || currentUser.email) : "Unknown",
-      
+
       // Original entry metadata (only if defined)
       createdAt: entryToDelete.createdAt || new Date().toISOString(),
       soldBy: entryToDelete.soldBy || "Unknown",
@@ -698,8 +848,8 @@ async function confirmDelete() {
     await Promise.all(deletePromises);
 
     if (deleteModal) deleteModal.hide();
-    const message = batchEntries.length > 1 
-      ? `${batchEntries.length} entries moved to Recently Deleted` 
+    const message = batchEntries.length > 1
+      ? `${batchEntries.length} entries moved to Recently Deleted`
       : "Entry moved to Recently Deleted";
     showToast(message, "success");
   } catch (err) {
@@ -1156,9 +1306,25 @@ function openAdminDeletedViewTicketsModal(deletedEntry) {
     <h6 class="fw-bold mb-3">Deleted Ticket Numbers</h6>
     <div class="row g-2">
       ${ticketDetails.map(ticketDetail => {
+    let typeLabel = ticketDetail.ticketType || "Regular";
+    let typeClass = "bg-secondary";
+
+    if (ticketDetail.ticketType) {
+      typeClass = ticketDetail.ticketType === "College Student" ? "bg-info" : "bg-warning text-dark";
+    } else {
+      if (ticketDetail.unitPrice == 300) {
+        typeLabel = "College Student";
+        typeClass = "bg-info";
+      } else if (ticketDetail.unitPrice == 700) {
+        typeLabel = "Outsider";
+        typeClass = "bg-warning text-dark";
+      }
+    }
+
+    const typeBadge = `<span class="badge ${typeClass} ms-2" style="font-size: 0.7rem;">${typeLabel}</span>`;
     const earlyBirdBadge = ticketDetail.isEarlyBird
       ? '<span class="badge bg-success ms-2" style="font-size: 0.7rem;">Early Bird</span>'
-      : '<span class="badge bg-secondary ms-2" style="font-size: 0.7rem;">Regular</span>';
+      : '';
 
     return `
           <div class="col-md-6 col-lg-4">
@@ -1166,7 +1332,7 @@ function openAdminDeletedViewTicketsModal(deletedEntry) {
               <div class="card-body py-2 px-3">
                 <div class="d-flex justify-content-between align-items-center">
                   <span class="fw-bold text-danger" style="font-size: 0.9rem;">Ticket ${safeStr(ticketDetail.ticketNumber)}</span>
-                  ${earlyBirdBadge}
+                  <div>${typeBadge}${earlyBirdBadge}</div>
                 </div>
                 <small class="text-muted">${formatCurrency(ticketDetail.unitPrice)}</small>
               </div>
@@ -1270,9 +1436,25 @@ function openAdminViewTicketsModal(schoolId, timestamp) {
       <h6 class="fw-bold mb-3">Ticket Numbers</h6>
       <div class="row g-2">
         ${batchEntries.map(ticketEntry => {
+      let typeLabel = ticketEntry.ticketType || "Regular";
+      let typeClass = "bg-secondary";
+
+      if (ticketEntry.ticketType) {
+        typeClass = ticketEntry.ticketType === "College Student" ? "bg-info" : "bg-warning text-dark";
+      } else {
+        if (ticketEntry.unitPrice == 300) {
+          typeLabel = "College Student";
+          typeClass = "bg-info";
+        } else if (ticketEntry.unitPrice == 700) {
+          typeLabel = "Outsider";
+          typeClass = "bg-warning text-dark";
+        }
+      }
+
+      const typeBadge = `<span class="badge ${typeClass} ms-2" style="font-size: 0.7rem;">${typeLabel}</span>`;
       const earlyBirdBadge = ticketEntry.isEarlyBird
         ? '<span class="badge bg-success ms-2" style="font-size: 0.7rem;">Early Bird</span>'
-        : '<span class="badge bg-secondary ms-2" style="font-size: 0.7rem;">Regular</span>';
+        : '';
 
       return `
             <div class="col-md-6 col-lg-4">
@@ -1280,7 +1462,7 @@ function openAdminViewTicketsModal(schoolId, timestamp) {
                 <div class="card-body py-2 px-3">
                   <div class="d-flex justify-content-between align-items-center">
                     <span class="fw-bold" style="font-size: 0.9rem;">Ticket ${safeStr(ticketEntry.ticketNumber)}</span>
-                    ${earlyBirdBadge}
+                    <div>${typeBadge}${earlyBirdBadge}</div>
                   </div>
                   <small class="text-muted">${formatCurrency(ticketEntry.unitPrice)}</small>
                 </div>
