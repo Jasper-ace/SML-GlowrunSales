@@ -178,10 +178,24 @@ const logoutBtn = document.getElementById("logoutBtn");
 const userNameEl = document.getElementById("userName");
 const userPhotoEl = document.getElementById("userPhoto");
 
+// Pagination elements
+const paginationContainer = document.getElementById("paginationContainer");
+const prevPageBtn = document.getElementById("prevPageBtn");
+const nextPageBtn = document.getElementById("nextPageBtn");
+const pageNumbers = document.getElementById("pageNumbers");
+const showingStart = document.getElementById("showingStart");
+const showingEnd = document.getElementById("showingEnd");
+const totalEntriesEl = document.getElementById("totalEntries");
+
 let entries = [];
 let currentUser = null;
 let editingId = null;
 let deleteId = null;
+
+// Pagination variables
+let currentPage = 1;
+const entriesPerPage = 10;
+let totalPages = 1;
 
 const duplicateModal = duplicateModalEl ? new bootstrap.Modal(duplicateModalEl) : null;
 const deleteModal = deleteModalEl ? new bootstrap.Modal(deleteModalEl) : null;
@@ -245,6 +259,25 @@ document.addEventListener("DOMContentLoaded", () => {
   const quantityInput = document.getElementById("quantity");
   if (quantityInput) {
     quantityInput.addEventListener("input", handleQuantityChange);
+  }
+
+  // Add pagination event listeners
+  if (prevPageBtn) {
+    prevPageBtn.addEventListener("click", () => {
+      if (currentPage > 1) {
+        currentPage--;
+        renderTable();
+      }
+    });
+  }
+
+  if (nextPageBtn) {
+    nextPageBtn.addEventListener("click", () => {
+      if (currentPage < totalPages) {
+        currentPage++;
+        renderTable();
+      }
+    });
   }
 
   // Add listeners for Department changes to toggle Year Level
@@ -617,15 +650,23 @@ async function handleAddEntry(e) {
       for (let i = 0; i < quantity; i++) {
         // Check for special department pricing
         const isSpecialDept = ["BES", "Faculty & Staff"].includes(department);
-        // Regular logic: Ticket 1 = Student Price, others = Outsider Price
-        // Special Dept logic: All tickets = Outsider Price
+        
+        // Pricing logic:
+        // - College Students: First ticket ₱300, additional ₱700
+        // - BES & Faculty & Staff: All tickets ₱700
         const price = isSpecialDept ? PRICE_OUTSIDER : ((i === 0) ? PRICE_STUDENT : PRICE_OUTSIDER);
 
+        // Type logic: First ticket gets department type, additional tickets are "Outsider"
         let type = "Outsider";
-        if (isSpecialDept) {
-          type = department === "BES" ? "Basic Education" : "Faculty/Staff";
-        } else {
-          type = (i === 0) ? "College Student" : "Outsider";
+        if (i === 0) {
+          // First ticket gets the appropriate type based on department
+          if (department === "BES") {
+            type = "Basic Education";
+          } else if (department === "Faculty & Staff") {
+            type = "Faculty/Staff";
+          } else {
+            type = "College Student";
+          }
         }
 
         const sequenceNum = currentSequence + i + 1;
@@ -779,11 +820,17 @@ async function handleSaveEdit(e) {
       // Re-evaluate price and type based on the new department and its index
       const price = isSpecialDept ? PRICE_OUTSIDER : ((i === 0) ? PRICE_STUDENT : PRICE_OUTSIDER);
 
+      // Type logic: First ticket gets department type, additional tickets are "Outsider"
       let type = "Outsider";
-      if (isSpecialDept) {
-        type = updatedDepartment === "BES" ? "Basic Education" : "Faculty/Staff";
-      } else {
-        type = (i === 0) ? "College Student" : "Outsider";
+      if (i === 0) {
+        // First ticket gets the appropriate type based on department
+        if (updatedDepartment === "BES") {
+          type = "Basic Education";
+        } else if (updatedDepartment === "Faculty & Staff") {
+          type = "Faculty/Staff";
+        } else {
+          type = "College Student";
+        }
       }
 
       const updated = {
@@ -813,18 +860,13 @@ async function handleSaveEdit(e) {
     for (let i = batchEntries.length; i < newQuantity; i++) {
       // Calculate the sequence number for this new ticket
       const ticketSequenceNumber = currentTicketCount + (i - batchEntries.length);
-      const ticketPrice = getPriceForTicketSequence(ticketSequenceNumber);
 
       // Check for special department pricing
       const isSpecialDept = ["BES", "Faculty & Staff"].includes(updatedDepartment);
-      const price = isSpecialDept ? PRICE_OUTSIDER : ((i === 0) ? PRICE_STUDENT : PRICE_OUTSIDER);
+      const price = PRICE_OUTSIDER; // All additional tickets during edit are outsider price
 
+      // All additional tickets during edit are considered "Outsider"
       let type = "Outsider";
-      if (isSpecialDept) {
-        type = updatedDepartment === "BES" ? "Basic Education" : "Faculty/Staff";
-      } else {
-        type = (i === 0) ? "College Student" : "Outsider";
-      }
 
       const newEntry = {
         schoolId: updatedSchoolId,
@@ -1319,8 +1361,25 @@ function openViewTicketsModal(id) {
       let typeClass = "bg-secondary";
 
       if (ticketEntry.ticketType) {
-        typeClass = ticketEntry.ticketType === "College Student" ? "bg-info" : "bg-warning text-dark";
+        // Set badge colors based on ticket type
+        switch (ticketEntry.ticketType) {
+          case "College Student":
+            typeClass = "bg-info";
+            break;
+          case "Basic Education":
+            typeClass = "bg-warning text-dark";
+            break;
+          case "Faculty/Staff":
+            typeClass = "bg-warning text-dark";
+            break;
+          case "Outsider":
+            typeClass = "bg-warning text-dark";
+            break;
+          default:
+            typeClass = "bg-secondary";
+        }
       } else {
+        // Fallback logic based on price
         if (ticketEntry.unitPrice == 300) {
           typeLabel = "College Student";
           typeClass = "bg-info";
@@ -1461,7 +1520,7 @@ function renderTable() {
     return matchesSearch && matchesDept && matchesDate;
   });
 
-  // ✅ Sort by time added (first come first serve - oldest first)
+  // ✅ Sort by time added (first come first serve - newest first)
   filteredEntries.sort((a, b) => {
     const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
     const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
@@ -1477,6 +1536,7 @@ function renderTable() {
       </tr>
     `;
     if (grandTotalEl) grandTotalEl.textContent = "0";
+    hidePagination();
     return;
   }
 
@@ -1501,11 +1561,37 @@ function renderTable() {
     groupedEntries[groupKey].push(entry);
   });
 
-  let grandTotal = 0;
-  let rowIndex = 1;
+  // Convert grouped entries to array for pagination
+  const groupedBatches = Object.values(groupedEntries);
+  
+  // Calculate pagination
+  const totalBatches = groupedBatches.length;
+  totalPages = Math.ceil(totalBatches / entriesPerPage);
+  
+  // Reset to page 1 if current page is beyond total pages
+  if (currentPage > totalPages && totalPages > 0) {
+    currentPage = 1;
+  }
+  
+  // Get entries for current page
+  const startIndex = (currentPage - 1) * entriesPerPage;
+  const endIndex = startIndex + entriesPerPage;
+  const currentPageBatches = groupedBatches.slice(startIndex, endIndex);
 
-  // Render grouped entries
-  Object.values(groupedEntries).forEach(batch => {
+  let grandTotal = 0;
+  let globalRowIndex = startIndex + 1; // Global row numbering
+
+  // Calculate grand total for ALL entries (not just current page)
+  groupedBatches.forEach(batch => {
+    const totalPrice = batch.reduce((sum, entry) => {
+      const unitPrice = toNumberSafe(entry.unitPrice, UNIT_PRICE);
+      return sum + unitPrice;
+    }, 0);
+    grandTotal += totalPrice;
+  });
+
+  // Render current page batches
+  currentPageBatches.forEach(batch => {
     // Sort batch by ticketIndex if available, otherwise by ticket number
     batch.sort((a, b) => {
       if (a.ticketIndex && b.ticketIndex) {
@@ -1517,19 +1603,13 @@ function renderTable() {
     const firstEntry = batch[0];
     const totalQuantity = batch.length;
 
-    // Calculate total price (may have mixed pricing)
+    // Calculate total price for this batch
     const totalPrice = batch.reduce((sum, entry) => {
       const unitPrice = toNumberSafe(entry.unitPrice, UNIT_PRICE);
       return sum + unitPrice;
     }, 0);
 
-    grandTotal += totalPrice;
-
     const createdAt = firstEntry.createdAt ? new Date(firstEntry.createdAt).toLocaleString() : "—";
-
-    // Check if any tickets in batch are early bird
-    const hasEarlyBird = batch.some(entry => entry.isEarlyBird);
-    const allEarlyBird = batch.every(entry => entry.isEarlyBird);
 
     // Create ticket number display
     let ticketNumberDisplay;
@@ -1573,7 +1653,7 @@ function renderTable() {
 
     const row = document.createElement("tr");
     row.innerHTML = `
-      <td class="text-center">${rowIndex}</td>
+      <td class="text-center">${globalRowIndex}</td>
       <td>${safeStr(firstEntry.schoolId)}</td>
       <td class="text-center">${ticketNumberDisplay}</td>
       <td>${safeStr(firstEntry.name)}</td>
@@ -1591,7 +1671,7 @@ function renderTable() {
       </td>
     `;
     studentTable.appendChild(row);
-    rowIndex++;
+    globalRowIndex++;
   });
 
   // Attach actions
@@ -1610,14 +1690,126 @@ function renderTable() {
     btn.onclick = () => openViewTicketsModal(id);
   });
 
-  // ✅ Grand total now respects date filter
+  // Update grand total (shows total for ALL entries, not just current page)
   if (grandTotalEl) grandTotalEl.textContent = formatCurrency(grandTotal);
+
+  // Update pagination
+  updatePagination(totalBatches);
+}
+
+// Pagination helper functions
+function updatePagination(totalEntries) {
+  if (totalEntries <= entriesPerPage) {
+    hidePagination();
+    return;
+  }
+
+  showPagination();
+
+  // Update pagination info
+  const start = (currentPage - 1) * entriesPerPage + 1;
+  const end = Math.min(currentPage * entriesPerPage, totalEntries);
+  
+  if (showingStart) showingStart.textContent = start;
+  if (showingEnd) showingEnd.textContent = end;
+  if (totalEntriesEl) totalEntriesEl.textContent = totalEntries;
+
+  // Update button states
+  if (prevPageBtn) {
+    prevPageBtn.disabled = currentPage === 1;
+  }
+  if (nextPageBtn) {
+    nextPageBtn.disabled = currentPage === totalPages;
+  }
+
+  // Update page numbers
+  updatePageNumbers();
+}
+
+function updatePageNumbers() {
+  if (!pageNumbers) return;
+
+  pageNumbers.innerHTML = "";
+
+  // Show only 3 page numbers at a time
+  const maxVisiblePages = 3;
+  
+  // Calculate the window of pages to show
+  let startPage, endPage;
+  
+  if (totalPages <= maxVisiblePages) {
+    // If total pages is 3 or less, show all pages
+    startPage = 1;
+    endPage = totalPages;
+  } else {
+    // Calculate sliding window
+    if (currentPage === 1) {
+      // At the beginning: show 1, 2, 3
+      startPage = 1;
+      endPage = maxVisiblePages;
+    } else if (currentPage === totalPages) {
+      // At the end: show last 3 pages
+      startPage = totalPages - maxVisiblePages + 1;
+      endPage = totalPages;
+    } else {
+      // In the middle: show current page in center
+      startPage = currentPage - 1;
+      endPage = currentPage + 1;
+    }
+  }
+
+  // Add page number buttons
+  for (let i = startPage; i <= endPage; i++) {
+    const pageBtn = document.createElement("button");
+    pageBtn.className = i === currentPage 
+      ? "btn btn-primary btn-sm" 
+      : "btn btn-outline-secondary btn-sm";
+    pageBtn.textContent = i;
+    pageBtn.onclick = () => goToPage(i);
+    pageNumbers.appendChild(pageBtn);
+  }
+
+  // Add ellipsis after the visible pages if there are more pages
+  if (endPage < totalPages) {
+    const ellipsis = document.createElement("span");
+    ellipsis.className = "px-2 text-muted";
+    ellipsis.textContent = "...";
+    pageNumbers.appendChild(ellipsis);
+  }
+}
+
+function goToPage(page) {
+  if (page >= 1 && page <= totalPages) {
+    currentPage = page;
+    renderTable();
+  }
+}
+
+function showPagination() {
+  if (paginationContainer) {
+    paginationContainer.style.display = "flex";
+  }
+}
+
+function hidePagination() {
+  if (paginationContainer) {
+    paginationContainer.style.display = "none";
+  }
 }
 
 // --------------------- Event Listeners ---------------------
-searchInput?.addEventListener("input", renderTable);
-filterDepartment?.addEventListener("change", renderTable);
-document.getElementById("filterDate")?.addEventListener("change", renderTable);
+searchInput?.addEventListener("input", () => {
+  currentPage = 1; // Reset to first page when searching
+  renderTable();
+});
+filterDepartment?.addEventListener("change", () => {
+  currentPage = 1; // Reset to first page when filtering
+  renderTable();
+});
+document.getElementById("filterDate")?.addEventListener("change", () => {
+  currentPage = 1; // Reset to first page when filtering by date
+  renderTable();
+});
 
 // Clear filters button
 const clearFiltersBtn = document.getElementById("clearFilters");
@@ -1627,6 +1819,7 @@ if (clearFiltersBtn) {
     if (filterDepartment) filterDepartment.value = "";
     const filterDate = document.getElementById("filterDate");
     if (filterDate) filterDate.value = "";
+    currentPage = 1; // Reset to first page when clearing filters
     renderTable();
     showToast("Filters cleared", "info");
   });

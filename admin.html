@@ -293,6 +293,26 @@
                 </tbody>
               </table>
             </div>
+
+            <!-- Activity Pagination Controls -->
+            <div id="activityPaginationContainer" class="d-flex justify-content-between align-items-center p-3 bg-light border-top" style="display: none !important;">
+              <div class="d-flex align-items-center">
+                <span class="text-muted me-3">
+                  Showing <span id="activityShowingStart">1</span> to <span id="activityShowingEnd">10</span> of <span id="activityTotalEntries">0</span> activities
+                </span>
+              </div>
+              <div class="d-flex align-items-center gap-2">
+                <button id="activityPrevPageBtn" class="btn btn-outline-primary btn-sm" disabled>
+                  <span style="font-size: 0.8rem;">←</span> Previous
+                </button>
+                <div id="activityPageNumbers" class="d-flex gap-1">
+                  <!-- Page numbers will be inserted here -->
+                </div>
+                <button id="activityNextPageBtn" class="btn btn-outline-primary btn-sm" disabled>
+                  Next <span style="font-size: 0.8rem;">→</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -508,6 +528,7 @@
                           <th class="py-3">School ID</th>
                           <th class="py-3 text-center">Ticket</th>
                           <th class="py-3">Student Name</th>
+                          <th class="py-3">Department</th>
                           <th class="py-3">Type</th>
                           <th class="py-3 text-end pe-3">Price</th>
                         </tr>

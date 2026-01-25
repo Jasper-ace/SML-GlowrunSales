@@ -48,6 +48,11 @@ let deleteId = null;
 let restoreId = null;
 let onlineUsers = [];
 
+// Activity pagination variables
+let activityCurrentPage = 1;
+const activityEntriesPerPage = 10;
+let activityTotalPages = 1;
+
 // Helper functions
 function safeStr(v) {
   return (v === undefined || v === null) ? "" : String(v);
@@ -124,6 +129,15 @@ const onlineUsersModal = onlineUsersModalEl ? new bootstrap.Modal(onlineUsersMod
 // Global state for permanent delete
 let permanentDeleteId = null;
 
+// Activity pagination elements
+const activityPaginationContainer = document.getElementById("activityPaginationContainer");
+const activityPrevPageBtn = document.getElementById("activityPrevPageBtn");
+const activityNextPageBtn = document.getElementById("activityNextPageBtn");
+const activityPageNumbers = document.getElementById("activityPageNumbers");
+const activityShowingStart = document.getElementById("activityShowingStart");
+const activityShowingEnd = document.getElementById("activityShowingEnd");
+const activityTotalEntriesEl = document.getElementById("activityTotalEntries");
+
 // Auth check
 document.addEventListener("DOMContentLoaded", () => {
   onAuthStateChanged(auth, (user) => {
@@ -162,6 +176,25 @@ document.addEventListener("DOMContentLoaded", () => {
   if (confirmClearAllBtn) confirmClearAllBtn.addEventListener("click", confirmClearAll);
   if (confirmPermanentDeleteBtn) confirmPermanentDeleteBtn.addEventListener("click", confirmPermanentDelete); // New listener
   if (clearDeletedBtn) clearDeletedBtn.addEventListener("click", openClearAllModal);
+
+  // Activity pagination event listeners
+  if (activityPrevPageBtn) {
+    activityPrevPageBtn.addEventListener("click", () => {
+      if (activityCurrentPage > 1) {
+        activityCurrentPage--;
+        renderActivityTable();
+      }
+    });
+  }
+
+  if (activityNextPageBtn) {
+    activityNextPageBtn.addEventListener("click", () => {
+      if (activityCurrentPage < activityTotalPages) {
+        activityCurrentPage++;
+        renderActivityTable();
+      }
+    });
+  }
 });
 
 // Chart instance and date offset
@@ -478,11 +511,11 @@ function renderActivityTable() {
     groupedEntries[groupKey].push(entry);
   });
 
-  // Sort grouped entries by time (first come first serve - oldest first)
+  // Sort grouped entries by time (newest first for recent activity)
   const sortedBatches = Object.values(groupedEntries).sort((a, b) => {
     const dateA = a[0].createdAt ? new Date(a[0].createdAt) : new Date(0);
     const dateB = b[0].createdAt ? new Date(b[0].createdAt) : new Date(0);
-    return dateA - dateB; // Ascending order (oldest first - first come first serve)
+    return dateB - dateA; // Descending order (newest first for recent activity)
   });
 
   tbody.innerHTML = "";
@@ -493,10 +526,28 @@ function renderActivityTable() {
         <td colspan="10" class="text-center text-muted">No activities found</td>
       </tr>
     `;
+    hideActivityPagination();
     return;
   }
 
-  sortedBatches.forEach((batch, index) => {
+  // Calculate pagination
+  const totalBatches = sortedBatches.length;
+  activityTotalPages = Math.ceil(totalBatches / activityEntriesPerPage);
+  
+  // Reset to page 1 if current page is beyond total pages
+  if (activityCurrentPage > activityTotalPages && activityTotalPages > 0) {
+    activityCurrentPage = 1;
+  }
+  
+  // Get entries for current page
+  const startIndex = (activityCurrentPage - 1) * activityEntriesPerPage;
+  const endIndex = startIndex + activityEntriesPerPage;
+  const currentPageBatches = sortedBatches.slice(startIndex, endIndex);
+
+  let globalRowIndex = startIndex + 1; // Global row numbering
+
+  // Render current page batches
+  currentPageBatches.forEach(batch => {
     // Sort batch by ticket number
     batch.sort((a, b) => safeStr(a.ticketNumber).localeCompare(safeStr(b.ticketNumber)));
 
@@ -531,7 +582,7 @@ function renderActivityTable() {
 
     const row = document.createElement("tr");
     row.innerHTML = `
-      <td class="text-center">${index + 1}</td>
+      <td class="text-center">${globalRowIndex}</td>
       <td>${safeStr(firstEntry.schoolId)}</td>
       <td>${ticketNumberDisplay}</td>
       <td>${safeStr(firstEntry.name)} ${safeStr(firstEntry.lastname)}</td>
@@ -545,6 +596,7 @@ function renderActivityTable() {
       </td>
     `;
     tbody.appendChild(row);
+    globalRowIndex++;
   });
 
   // Attach delete handlers
@@ -558,6 +610,109 @@ function renderActivityTable() {
     const timestamp = btn.getAttribute("data-timestamp");
     btn.onclick = () => openAdminViewTicketsModal(schoolId, timestamp);
   });
+
+  // Update pagination
+  updateActivityPagination(totalBatches);
+}
+
+// Activity pagination helper functions
+function updateActivityPagination(totalEntries) {
+  if (totalEntries <= activityEntriesPerPage) {
+    hideActivityPagination();
+    return;
+  }
+
+  showActivityPagination();
+
+  // Update pagination info
+  const start = (activityCurrentPage - 1) * activityEntriesPerPage + 1;
+  const end = Math.min(activityCurrentPage * activityEntriesPerPage, totalEntries);
+  
+  if (activityShowingStart) activityShowingStart.textContent = start;
+  if (activityShowingEnd) activityShowingEnd.textContent = end;
+  if (activityTotalEntriesEl) activityTotalEntriesEl.textContent = totalEntries;
+
+  // Update button states
+  if (activityPrevPageBtn) {
+    activityPrevPageBtn.disabled = activityCurrentPage === 1;
+  }
+  if (activityNextPageBtn) {
+    activityNextPageBtn.disabled = activityCurrentPage === activityTotalPages;
+  }
+
+  // Update page numbers
+  updateActivityPageNumbers();
+}
+
+function updateActivityPageNumbers() {
+  if (!activityPageNumbers) return;
+
+  activityPageNumbers.innerHTML = "";
+
+  // Show only 3 page numbers at a time
+  const maxVisiblePages = 3;
+  
+  // Calculate the window of pages to show
+  let startPage, endPage;
+  
+  if (activityTotalPages <= maxVisiblePages) {
+    // If total pages is 3 or less, show all pages
+    startPage = 1;
+    endPage = activityTotalPages;
+  } else {
+    // Calculate sliding window
+    if (activityCurrentPage === 1) {
+      // At the beginning: show 1, 2, 3
+      startPage = 1;
+      endPage = maxVisiblePages;
+    } else if (activityCurrentPage === activityTotalPages) {
+      // At the end: show last 3 pages
+      startPage = activityTotalPages - maxVisiblePages + 1;
+      endPage = activityTotalPages;
+    } else {
+      // In the middle: show current page in center
+      startPage = activityCurrentPage - 1;
+      endPage = activityCurrentPage + 1;
+    }
+  }
+
+  // Add page number buttons
+  for (let i = startPage; i <= endPage; i++) {
+    const pageBtn = document.createElement("button");
+    pageBtn.className = i === activityCurrentPage 
+      ? "btn btn-primary btn-sm" 
+      : "btn btn-outline-secondary btn-sm";
+    pageBtn.textContent = i;
+    pageBtn.onclick = () => goToActivityPage(i);
+    activityPageNumbers.appendChild(pageBtn);
+  }
+
+  // Add ellipsis after the visible pages if there are more pages
+  if (endPage < activityTotalPages) {
+    const ellipsis = document.createElement("span");
+    ellipsis.className = "px-2 text-muted";
+    ellipsis.textContent = "...";
+    activityPageNumbers.appendChild(ellipsis);
+  }
+}
+
+function goToActivityPage(page) {
+  if (page >= 1 && page <= activityTotalPages) {
+    activityCurrentPage = page;
+    renderActivityTable();
+  }
+}
+
+function showActivityPagination() {
+  if (activityPaginationContainer) {
+    activityPaginationContainer.style.display = "flex";
+  }
+}
+
+function hideActivityPagination() {
+  if (activityPaginationContainer) {
+    activityPaginationContainer.style.display = "none";
+  }
 }
 
 // Populate user filter dropdown
@@ -660,7 +815,7 @@ function openUserStatsModal(userEmail) {
     historyTbody.innerHTML = "";
 
     if (records.length === 0) {
-      historyTbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted">No transactions found</td></tr>`;
+      historyTbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted">No transactions found</td></tr>`;
       return;
     }
 
@@ -675,15 +830,51 @@ function openUserStatsModal(userEmail) {
       const time = e.createdAt ? new Date(e.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "—";
       const ticket = safeStr(e.ticketNumber) || "—";
 
-      let typeBadge = "";
-      if (e.ticketType === "College Student" || e.unitPrice == 300) {
-        typeBadge = `<span class="badge bg-info text-dark" style="font-size:0.75rem">Student</span>`;
+      // Determine type based on ticketType field first, then fallback to department/price logic
+      let typeDisplay = "College Student";
+      let typeBadgeClass = "bg-info";
+      
+      if (e.ticketType) {
+        // Use the actual ticketType field
+        switch (e.ticketType) {
+          case "College Student":
+            typeDisplay = "College Student";
+            typeBadgeClass = "bg-info";
+            break;
+          case "Basic Education":
+            typeDisplay = "Highschool";
+            typeBadgeClass = "bg-success";
+            break;
+          case "Faculty/Staff":
+            typeDisplay = "Faculty&Staff";
+            typeBadgeClass = "bg-warning text-dark";
+            break;
+          case "Outsider":
+            typeDisplay = "Outsider";
+            typeBadgeClass = "bg-warning text-dark";
+            break;
+          default:
+            typeDisplay = "College Student";
+            typeBadgeClass = "bg-info";
+        }
       } else {
-        typeBadge = `<span class="badge bg-warning text-dark" style="font-size:0.75rem">Outsider</span>`;
+        // Fallback logic for entries without ticketType field
+        const department = safeStr(e.department);
+        const yrlvl = safeStr(e.yrlvl);
+        
+        if (department === "Faculty & Staff" || yrlvl === "Faculty" || yrlvl === "Staff") {
+          typeDisplay = "Faculty&Staff";
+          typeBadgeClass = "bg-warning text-dark";
+        } else if (department === "BES" || yrlvl.startsWith("Grade")) {
+          typeDisplay = "Highschool";
+          typeBadgeClass = "bg-success";
+        } else if (e.unitPrice == 700) {
+          typeDisplay = "Outsider";
+          typeBadgeClass = "bg-warning text-dark";
+        }
       }
-      if (e.isEarlyBird) {
-        typeBadge += ` <span class="badge bg-success" style="font-size:0.75rem">⚡</span>`;
-      }
+
+      const typeBadge = `<span class="badge ${typeBadgeClass}" style="font-size:0.75rem">${typeDisplay}</span>`;
 
       const row = document.createElement("tr");
       row.innerHTML = `
@@ -691,6 +882,7 @@ function openUserStatsModal(userEmail) {
         <td>${safeStr(e.schoolId)}</td>
         <td class="text-center fw-bold">${ticket}</td>
         <td>${safeStr(e.name)} ${safeStr(e.lastname)}</td>
+        <td>${safeStr(e.department)}</td>
         <td>${typeBadge}</td>
         <td class="text-end pe-3">${formatCurrency(e.unitPrice)}</td>
       `;
@@ -1779,7 +1971,16 @@ document.getElementById("chartToday")?.addEventListener("click", () => {
 
 // Event listeners
 document.getElementById("userSearch")?.addEventListener("input", renderUserTable);
-document.getElementById("activityFilter")?.addEventListener("change", renderActivityTable);
-document.getElementById("activityUser")?.addEventListener("change", renderActivityTable);
-document.getElementById("activitySearch")?.addEventListener("input", renderActivityTable);
+document.getElementById("activityFilter")?.addEventListener("change", () => {
+  activityCurrentPage = 1; // Reset to first page when filtering
+  renderActivityTable();
+});
+document.getElementById("activityUser")?.addEventListener("change", () => {
+  activityCurrentPage = 1; // Reset to first page when filtering
+  renderActivityTable();
+});
+document.getElementById("activitySearch")?.addEventListener("input", () => {
+  activityCurrentPage = 1; // Reset to first page when searching
+  renderActivityTable();
+});
 document.getElementById("deletedSearch")?.addEventListener("input", renderDeletedTable);

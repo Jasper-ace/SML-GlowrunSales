@@ -60,7 +60,7 @@
 
       <!-- Left Column: Form -->
       <div class="col-lg-4 col-md-5">
-        <div class="card shadow border-0 rounded-3 h-100">
+        <div class="card shadow border-0 rounded-3">
           <div class="card-body">
             <h5 class="card-title mb-4">
               <span style="font-size: 1.25rem;">➕</span>
@@ -79,7 +79,7 @@
                 <label for="lastname" class="form-label">Last Name</label>
                 <input type="text" class="form-control" id="lastname" placeholder="Enter Last Name" required>
               </div>
-            
+
               <div class="mb-3">
                 <label for="department" class="form-label">Department</label>
                 <select class="form-select" id="department" required>
@@ -175,7 +175,7 @@
             <!-- Scrollable Table with Fixed Footer -->
             <div style="border: 1px solid #dee2e6; border-radius: 8px; overflow: hidden;">
               <!-- Scrollable Table Body -->
-              <div style="max-height: 450px; overflow-y: auto; overflow-x: auto;">
+              <div style="max-height: 750px; overflow-y: auto; overflow-x: auto;">
                 <table class="table table-striped table-hover table-bordered align-middle mb-0" id="studentTable">
                   <thead class="text-center" style="position: sticky; top: 0; z-index: 10;">
                     <tr>
@@ -198,6 +198,26 @@
                     <!-- Rows will be inserted dynamically -->
                   </tbody>
                 </table>
+              </div>
+
+              <!-- Pagination Controls -->
+              <div id="paginationContainer" class="d-flex justify-content-between align-items-center p-3 bg-light border-top" style="display: none !important;">
+                <div class="d-flex align-items-center">
+                  <span class="text-muted me-3">
+                    Showing <span id="showingStart">1</span> to <span id="showingEnd">10</span> of <span id="totalEntries">0</span> entries
+                  </span>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                  <button id="prevPageBtn" class="btn btn-outline-primary btn-sm" disabled>
+                    <span style="font-size: 0.8rem;">←</span> Previous
+                  </button>
+                  <div id="pageNumbers" class="d-flex gap-1">
+                    <!-- Page numbers will be inserted here -->
+                  </div>
+                  <button id="nextPageBtn" class="btn btn-outline-primary btn-sm" disabled>
+                    Next <span style="font-size: 0.8rem;">→</span>
+                  </button>
+                </div>
               </div>
 
               <!-- Fixed Grand Total Footer -->
