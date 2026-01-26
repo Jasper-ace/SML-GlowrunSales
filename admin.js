@@ -1735,7 +1735,10 @@ function renderSalesChart() {
   for (let i = 6; i >= 0; i--) {
     const date = new Date();
     date.setDate(date.getDate() - i + chartDateOffset);
-    const dateStr = date.toISOString().split('T')[0];
+    // Use local timezone formatting instead of UTC
+    const dateStr = date.getFullYear() + "-" + 
+      String(date.getMonth() + 1).padStart(2, '0') + "-" + 
+      String(date.getDate()).padStart(2, '0');
     const dayName = date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 
     if (i === 6) startDate.setTime(date.getTime());
@@ -1746,8 +1749,12 @@ function renderSalesChart() {
     // Count entries and revenue for this day
     const dayEntries = entries.filter(e => {
       if (!e.createdAt) return false;
-      const entryDate = new Date(e.createdAt).toISOString().split('T')[0];
-      return entryDate === dateStr;
+      // Use local timezone formatting for entry dates too
+      const entryDate = new Date(e.createdAt);
+      const entryDateStr = entryDate.getFullYear() + "-" + 
+        String(entryDate.getMonth() + 1).padStart(2, '0') + "-" + 
+        String(entryDate.getDate()).padStart(2, '0');
+      return entryDateStr === dateStr;
     });
 
     salesData.push(dayEntries.length);
