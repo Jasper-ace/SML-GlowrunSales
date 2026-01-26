@@ -277,15 +277,13 @@ function updateStats() {
 
   const uniqueUsers = new Set(entries.map(e => e.soldBy)).size;
 
-  const today = new Date().toISOString().split('T')[0];
-  const todayQuantity = entries.filter(e => {
+  const today = new Date();
+  const todayEntries = entries.filter(e => {
     if (!e.createdAt) return false;
-    const entryDate = new Date(e.createdAt).toISOString().split('T')[0];
-    return entryDate === today;
-  }).reduce((sum, e) => {
-    const qty = toNumberSafe(e.quantity, 0);
-    return sum + qty;
-  }, 0);
+    const entryDate = new Date(e.createdAt);
+    return entryDate.toDateString() === today.toDateString();
+  });
+  const todayQuantity = todayEntries.length;
 
   if (totalEntriesEl) totalEntriesEl.textContent = totalEntries;
   if (totalRevenueEl) totalRevenueEl.textContent = formatCurrency(totalRevenue);
