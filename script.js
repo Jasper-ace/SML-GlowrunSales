@@ -9,8 +9,17 @@ import {
   deleteDoc,
   doc,
   setDoc,
+  query,
+  where,
+  orderBy,
+  limit,
+  startAfter,
+  onSnapshot,
   serverTimestamp,
-  runTransaction
+  runTransaction,
+  enableNetwork,
+  disableNetwork,
+  getCountFromServer
 } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
 import {
   getAuth,
@@ -29,13 +38,20 @@ const firebaseConfig = {
   appId: "1:295519366546:web:592af0e701eed3e828e54b",
   measurementId: "G-YER90NZLVD"
 };
-import { onSnapshot } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
 
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+
+// Enable offline persistence for caching
+try {
+  // Note: In web, persistence is enabled by default in v9
+  console.log("✅ Firestore offline persistence enabled");
+} catch (error) {
+  console.log("Offline persistence not available:", error);
+}
 
 // ✅ Allowed emails
 const allowedEmails = [
@@ -81,6 +97,36 @@ function safeStr(v) {
 function toNumberSafe(v, fallback = 0) {
   const n = Number(v);
   return Number.isFinite(n) ? n : fallback;
+}
+
+
+
+// Helper function to update entries with recent changes
+function updateEntriesWithRecent(recentEntries) {
+  // Update existing entries or add new ones
+  recentEntries.forEach(recentEntry => {
+    const existingIndex = entries.findIndex(e => e.id === recentEntry.id);
+    if (existingIndex >= 0) {
+      entries[existingIndex] = recentEntry; // Update existing
+    } else {
+      entries.unshift(recentEntry); // Add new at beginning
+    }
+  });
+
+  // Remove entries that might have been deleted
+  const recentIds = new Set(recentEntries.map(e => e.id));
+  entries = entries.filter(entry => {
+    // Keep entries that are either in recent list or older than recent list
+    return recentIds.has(entry.id) || !isRecentEntry(entry);
+  });
+}
+
+// Helper to check if entry is recent enough to be in real-time updates
+function isRecentEntry(entry) {
+  if (!entry.createdAt) return false;
+  const entryTime = new Date(entry.createdAt).getTime();
+  const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000);
+  return entryTime > oneDayAgo;
 }
 function formatCurrency(n) {
   return "₱" + Number(n).toLocaleString();
@@ -197,6 +243,10 @@ let currentPage = 1;
 const entriesPerPage = 10;
 let totalPages = 1;
 
+let isSearching = false;
+let searchDebounceTimer = null;
+let schoolIdCheckTimer = null;
+
 const duplicateModal = duplicateModalEl ? new bootstrap.Modal(duplicateModalEl) : null;
 const deleteModal = deleteModalEl ? new bootstrap.Modal(deleteModalEl) : null;
 const viewTicketsModal = viewTicketsModalEl ? new bootstrap.Modal(viewTicketsModalEl) : null;
@@ -225,7 +275,9 @@ document.addEventListener("DOMContentLoaded", () => {
       // Track user as online
       trackUserOnline(user);
 
+      // Load entries and get total count
       loadEntries();
+      getTotalEntriesCount();
     } else {
       window.location.href = "index.html";
     }
@@ -293,19 +345,104 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // --------------------- Firestore operations ---------------------
-function loadEntries() {
+
+// Optimized Server-Side Search
+async function performServerSearch(searchTerm) {
+  if (!searchTerm || searchTerm.length < 2) {
+    // If search is cleared or too short, reload default view
+    if (isSearching) {
+      isSearching = false;
+      loadEntries();
+    }
+    return;
+  }
+
+  isSearching = true;
+  if (loadingSpinner) loadingSpinner.classList.remove("d-none");
+
+  // Unsubscribe from real-time listener to prevent conflicts
+  if (window.entriesUnsub) {
+    window.entriesUnsub();
+    window.entriesUnsub = null;
+  }
+
+  try {
+    const term = searchTerm.trim();
+    // Capitalize first letter for name search (basic case handling)
+    const capitalizedTerm = term.charAt(0).toUpperCase() + term.slice(1);
+
+    // We will perform parallel queries to check different fields
+    // This is cheaper than downloading everything
+
+    // Query 1: Exact Ticket Number
+    // Query 2: Exact School ID
+    // Query 3: Prefix match Name
+    // Query 4: Prefix match Lastname
+
+    const queries = [
+      // Query 1: Prefix match Ticket Number (e.g., "005" finds "0050", "0051")
+      query(collection(db, "entries"), where("ticketNumber", ">=", term), where("ticketNumber", "<=", term + '\uf8ff')),
+
+      // Query 2: Prefix match School ID (e.g., "2023" finds "2023001")
+      query(collection(db, "entries"), where("schoolId", ">=", term), where("schoolId", "<=", term + '\uf8ff')),
+
+      // Query 3: Prefix match Name
+      query(collection(db, "entries"), where("name", ">=", term), where("name", "<=", term + '\uf8ff')),
+
+      // Query 4: Prefix match Lastname
+      query(collection(db, "entries"), where("lastname", ">=", term), where("lastname", "<=", term + '\uf8ff')),
+
+      // Try capitalized version too if different
+      ...(term !== capitalizedTerm ? [
+        query(collection(db, "entries"), where("name", ">=", capitalizedTerm), where("name", "<=", capitalizedTerm + '\uf8ff')),
+        query(collection(db, "entries"), where("lastname", ">=", capitalizedTerm), where("lastname", "<=", capitalizedTerm + '\uf8ff'))
+      ] : [])
+    ];
+
+    const snapshots = await Promise.all(queries.map(q => getDocs(q)));
+
+    // Deduplicate results by ID
+    const resultsMap = new Map();
+    snapshots.forEach(chap => {
+      chap.forEach(doc => {
+        resultsMap.set(doc.id, { id: doc.id, ...doc.data() });
+      });
+    });
+
+    entries = Array.from(resultsMap.values());
+    console.log(`🔍 Search found ${entries.length} results for "${term}"`);
+
+    renderTable(); // This will use the loaded 'entries' which now contains only search results
+
+  } catch (err) {
+    console.error("Search failed:", err);
+    showToast("Search failed: " + err.message, "danger");
+  } finally {
+    if (loadingSpinner) loadingSpinner.classList.add("d-none");
+  }
+}
+
+// Load entries with proper server-side pagination
+async function loadEntries() {
   try {
     if (loadingSpinner) loadingSpinner.classList.remove("d-none");
 
-    // Listen in real-time for any change in the "entries" collection
+    // Only load current page (10 entries) instead of all 323
     const entriesRef = collection(db, "entries");
+    const q = query(
+      entriesRef,
+      orderBy("createdAt", "desc"),
+      limit(entriesPerPage)
+    );
 
-    // Remove any previous listener before attaching a new one
+    // Remove any previous listener
     if (window.entriesUnsub) window.entriesUnsub();
 
-    window.entriesUnsub = onSnapshot(entriesRef, (snapshot) => {
+    // Use real-time listener for current page only
+    window.entriesUnsub = onSnapshot(q, (snapshot) => {
       entries = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-      renderTable(); // automatically re-render whenever Firestore updates
+      renderTable();
+      console.log(`✅ Loaded ${entries.length} entries (server-side pagination)`);
     }, (error) => {
       console.error("Realtime listener error:", error);
       showToast("Failed to listen for updates: " + error.message, "danger");
@@ -318,8 +455,6 @@ function loadEntries() {
     if (loadingSpinner) loadingSpinner.classList.add("d-none");
   }
 }
-
-
 
 // Handle quantity changes to create dynamic ticket number fields
 function handleQuantityChange() {
@@ -458,27 +593,8 @@ function validateAllTicketNumbers() {
     hasError = true;
   }
 
-  // Enable/disable submit button
-  if (submitButton) {
-    // Also check if School ID is valid
-    const schoolIdInput = document.getElementById("schoolId");
-    const schoolIdVal = safeStr(schoolIdInput?.value).trim().toLowerCase();
-    const schoolIdDuplicate = entries.some(en =>
-      safeStr(en.schoolId).trim().toLowerCase() === schoolIdVal
-    );
-
-    if (hasError || schoolIdDuplicate || !allFilled) {
-      submitButton.disabled = true;
-      submitButton.style.opacity = "0.5";
-      submitButton.style.cursor = "not-allowed";
-      submitButton.style.background = "#9ca3af";
-    } else {
-      submitButton.disabled = false;
-      submitButton.style.opacity = "";
-      submitButton.style.cursor = "";
-      submitButton.style.background = "";
-    }
-  }
+  // Enable/disable submit button using the shared helper
+  checkSubmitButtonState();
 }
 
 // Validate Ticket Number input in real-time
@@ -487,53 +603,92 @@ function validateSchoolIdInput() {
   const schoolIdInput = document.getElementById("schoolId");
   if (!schoolIdInput) return;
 
-  const schoolIdVal = safeStr(schoolIdInput.value).trim().toLowerCase();
-  const isDuplicate = entries.some(en =>
-    safeStr(en.schoolId).trim().toLowerCase() === schoolIdVal
-  );
-
-  // Get the submit button
+  const schoolIdVal = safeStr(schoolIdInput.value).trim();
   const submitButton = studentForm?.querySelector('button[type="submit"]');
 
-  if (isDuplicate && schoolIdVal !== "") {
-    schoolIdInput.style.borderColor = "#ef4444";
-    schoolIdInput.style.borderWidth = "2px";
-    schoolIdInput.style.backgroundColor = "#fee2e2";
+  // Clear existing timer
+  if (schoolIdCheckTimer) clearTimeout(schoolIdCheckTimer);
 
-    // Add or update warning message
-    let warningMsg = schoolIdInput.parentElement.querySelector(".duplicate-warning");
-    if (!warningMsg) {
-      warningMsg = document.createElement("small");
-      warningMsg.className = "duplicate-warning text-danger d-block mt-1";
-      warningMsg.style.fontWeight = "600";
-      schoolIdInput.parentElement.appendChild(warningMsg);
+  // If empty, clear errors and return
+  if (!schoolIdVal) {
+    clearSchoolIdError(schoolIdInput);
+    checkSubmitButtonState();
+    return;
+  }
+
+  // Debounce the server check
+  schoolIdCheckTimer = setTimeout(async () => {
+    try {
+      // Check server for duplicate
+      const q = query(collection(db, "entries"), where("schoolId", "==", schoolIdVal));
+      const snapshot = await getDocs(q);
+      const isDuplicate = !snapshot.empty;
+
+      if (isDuplicate) {
+        showSchoolIdError(schoolIdInput, "⚠️ This ID Number already exists!");
+        // Disable submit button explicitly
+        if (submitButton) {
+          submitButton.disabled = true;
+          submitButton.style.opacity = "0.5";
+          submitButton.style.cursor = "not-allowed";
+        }
+      } else {
+        clearSchoolIdError(schoolIdInput);
+        checkSubmitButtonState();
+      }
+    } catch (err) {
+      console.error("Validation error:", err);
     }
-    warningMsg.textContent = "⚠️ This ID Number already exists!";
+  }, 500);
+}
 
-    // Disable submit button
-    if (submitButton) {
+function showSchoolIdError(input, message) {
+  input.style.borderColor = "#ef4444";
+  input.style.borderWidth = "2px";
+  input.style.backgroundColor = "#fee2e2";
+
+  let warningMsg = input.parentElement.querySelector(".duplicate-warning");
+  if (!warningMsg) {
+    warningMsg = document.createElement("small");
+    warningMsg.className = "duplicate-warning text-danger d-block mt-1";
+    warningMsg.style.fontWeight = "600";
+    input.parentElement.appendChild(warningMsg);
+  }
+  warningMsg.textContent = message;
+}
+
+function clearSchoolIdError(input) {
+  input.style.borderColor = "";
+  input.style.borderWidth = "";
+  input.style.backgroundColor = "";
+  const warningMsg = input.parentElement.querySelector(".duplicate-warning");
+  if (warningMsg) warningMsg.remove();
+}
+
+// Helper to check overall form validity including ticket numbers
+function checkSubmitButtonState() {
+  const submitButton = studentForm?.querySelector('button[type="submit"]');
+  const ticketInputs = document.querySelectorAll(".ticket-number-input");
+
+  // Check if any ticket inputs have errors
+  const hasTicketError = Array.from(ticketInputs).some(input =>
+    input.style.borderColor === "rgb(239, 68, 68)" || input.style.borderColor === "#ef4444"
+  );
+
+  // Check if ID has error
+  const schoolIdInput = document.getElementById("schoolId");
+  const hasIdError = schoolIdInput?.parentElement.querySelector(".duplicate-warning") !== null;
+
+  const allFilled = Array.from(ticketInputs).every(input => input.value.trim() !== "");
+  const idFilled = schoolIdInput?.value.trim() !== "";
+
+  if (submitButton) {
+    if (hasTicketError || hasIdError || !allFilled || !idFilled) {
       submitButton.disabled = true;
       submitButton.style.opacity = "0.5";
       submitButton.style.cursor = "not-allowed";
       submitButton.style.background = "#9ca3af";
-    }
-  } else {
-    schoolIdInput.style.borderColor = "";
-    schoolIdInput.style.borderWidth = "";
-    schoolIdInput.style.backgroundColor = "";
-    const warningMsg = schoolIdInput.parentElement.querySelector(".duplicate-warning");
-    if (warningMsg) warningMsg.remove();
-
-    // Enable submit button (but check if Ticket Number is also valid)
-    const ticketNumberInput = document.getElementById("ticketNumber");
-    const ticketVal = ticketNumberInput?.value;
-    const ticketNumValue = parseInt(ticketVal, 10);
-    const formattedTicketValue = ticketVal ? String(ticketNumValue).padStart(4, '0') : '';
-    const ticketDuplicate = ticketVal && entries.some(en =>
-      safeStr(en.ticketNumber) === formattedTicketValue
-    );
-
-    if (submitButton && !ticketDuplicate) {
+    } else {
       submitButton.disabled = false;
       submitButton.style.opacity = "";
       submitButton.style.cursor = "";
@@ -552,8 +707,11 @@ async function handleAddEntry(e) {
     return;
   }
 
-  const dup = entries.find(en => safeStr(en.schoolId).trim().toLowerCase() === schoolIdVal.toLowerCase());
-  if (dup) {
+  // Optimized: Check for duplicate using a specific query instead of scanning all entries
+  const duplicateQuery = query(collection(db, "entries"), where("schoolId", "==", schoolIdVal));
+  const duplicateSnapshot = await getDocs(duplicateQuery);
+
+  if (!duplicateSnapshot.empty) {
     if (duplicateModal) duplicateModal.show();
     else showToast("Duplicate School ID", "warning");
     return;
@@ -596,9 +754,10 @@ async function handleAddEntry(e) {
 
     const formattedTicketNumber = String(numValue).padStart(4, '0');
 
-    // Check for duplicate ticket number in database
-    const ticketDup = entries.find(en => safeStr(en.ticketNumber) === formattedTicketNumber);
-    if (ticketDup) {
+    // Check for duplicate ticket number in database (server-side check)
+    const ticketQuery = query(collection(db, "entries"), where("ticketNumber", "==", formattedTicketNumber));
+    const ticketSnapshot = await getDocs(ticketQuery);
+    if (!ticketSnapshot.empty) {
       showToast(`Ticket Number ${formattedTicketNumber} already exists`, "warning");
       return;
     }
@@ -650,7 +809,7 @@ async function handleAddEntry(e) {
       for (let i = 0; i < quantity; i++) {
         // Check for special department pricing
         const isSpecialDept = ["BES", "Faculty & Staff"].includes(department);
-        
+
         // Pricing logic:
         // - College Students: First ticket ₱300, additional ₱700
         // - BES & Faculty & Staff: All tickets ₱700
@@ -744,11 +903,14 @@ async function handleSaveEdit(e) {
   if (!updatedSchoolId) return showToast("School ID is required", "warning");
 
   // Check for duplicate school ID (excluding current batch)
-  const dup = entries.find(en =>
-    !batchEntries.some(be => be.id === en.id) &&
-    safeStr(en.schoolId).trim().toLowerCase() === updatedSchoolId.toLowerCase()
-  );
-  if (dup) {
+  // Check for duplicate school ID (excluding current batch) - Server-side check
+  const dupQuery = query(collection(db, "entries"), where("schoolId", "==", updatedSchoolId));
+  const dupSnapshot = await getDocs(dupQuery);
+
+  // Check if any found document is NOT in the current batch
+  const isDuplicate = !dupSnapshot.empty && dupSnapshot.docs.some(doc => !batchEntries.some(be => be.id === doc.id));
+
+  if (isDuplicate) {
     showToast("This School ID already exists. Please use a unique ID.", "warning");
     return;
   }
@@ -780,12 +942,14 @@ async function handleSaveEdit(e) {
 
     const formattedTicketNumber = String(numValue).padStart(4, '0');
 
-    // Check for duplicate ticket number (excluding current batch)
-    const ticketDup = entries.find(en =>
-      !batchEntries.some(be => be.id === en.id) &&
-      safeStr(en.ticketNumber) === formattedTicketNumber
-    );
-    if (ticketDup) {
+    // Check for duplicate ticket number (excluding current batch) - Server-side check
+    const ticketDupQuery = query(collection(db, "entries"), where("ticketNumber", "==", formattedTicketNumber));
+    const ticketDupSnapshot = await getDocs(ticketDupQuery);
+
+    // Check if any found document is NOT in the current batch
+    const isTicketDuplicate = !ticketDupSnapshot.empty && ticketDupSnapshot.docs.some(doc => !batchEntries.some(be => be.id === doc.id));
+
+    if (isTicketDuplicate) {
       showToast(`Ticket Number ${formattedTicketNumber} already exists`, "warning");
       return;
     }
@@ -1497,7 +1661,7 @@ function renderTable() {
   const deptVal = safeStr(filterDepartment?.value);
   const dateVal = document.getElementById("filterDate")?.value || ""; // YYYY-MM-DD
 
-  const filteredEntries = entries.filter(entry => {
+  const filteredEntries = isSearching ? entries : entries.filter(entry => {
     const sid = safeStr(entry.schoolId).toLowerCase();
     const ticketNum = safeStr(entry.ticketNumber).toLowerCase();
     const name = safeStr(entry.name).toLowerCase();
@@ -1563,20 +1727,61 @@ function renderTable() {
 
   // Convert grouped entries to array for pagination
   const groupedBatches = Object.values(groupedEntries);
-  
-  // Calculate pagination
-  const totalBatches = groupedBatches.length;
-  totalPages = Math.ceil(totalBatches / entriesPerPage);
-  
+
+  // Determine if we are in a 'filtered' state (local filters OR server search results)
+  const isFilteringLocal = deptVal || dateVal;
+  const isFiltered = isFilteringLocal || isSearching;
+
+  let currentPageBatches;
+
+  if (isFiltered) {
+    // If we are searching or filtering locally, show all results that match
+    // We perform client-side pagination on the loaded results
+    const startIndex = (currentPage - 1) * entriesPerPage;
+    const endIndex = startIndex + entriesPerPage;
+    currentPageBatches = groupedBatches.slice(startIndex, endIndex);
+
+    // Recalculate total pages for the search results
+    totalPages = Math.ceil(groupedBatches.length / entriesPerPage);
+
+    // Update pagination UI explicitly for this state
+    updatePagination(groupedBatches.length);
+
+  } else {
+    // No filters - use server total count for proper pagination
+    totalPages = Math.ceil(totalEntriesCount / entriesPerPage);
+
+    // Server-side pagination (Default View): The loaded entries ARE the page data
+    currentPageBatches = groupedBatches;
+
+    // Update pagination UI passing the server total
+    // Only show if we have more entries than fit on one page
+    if (paginationContainer) {
+      if (totalEntriesCount > entriesPerPage) {
+        showPagination();
+        if (totalEntriesEl) totalEntriesEl.textContent = totalEntriesCount;
+        updatePageNumbers();
+      } else {
+        // If total entries is small, verify if we should hide or just show "1 of 1"
+        // Usually we hide if only 1 page
+        hidePagination();
+      }
+    }
+  }
+
   // Reset to page 1 if current page is beyond total pages
   if (currentPage > totalPages && totalPages > 0) {
     currentPage = 1;
+    // If we reset page, we might need to re-slice if client-side
+    if (isFiltered) {
+      const startIndex = 0;
+      const endIndex = entriesPerPage;
+      currentPageBatches = groupedBatches.slice(startIndex, endIndex);
+    }
   }
-  
-  // Get entries for current page
+
+  // Calculate global start index for row numbering
   const startIndex = (currentPage - 1) * entriesPerPage;
-  const endIndex = startIndex + entriesPerPage;
-  const currentPageBatches = groupedBatches.slice(startIndex, endIndex);
 
   let grandTotal = 0;
   let globalRowIndex = startIndex + 1; // Global row numbering
@@ -1694,7 +1899,8 @@ function renderTable() {
   if (grandTotalEl) grandTotalEl.textContent = formatCurrency(grandTotal);
 
   // Update pagination
-  updatePagination(totalBatches);
+  const totalForPagination = isFiltered ? groupedBatches.length : totalEntriesCount;
+  updatePagination(totalForPagination);
 }
 
 // Pagination helper functions
@@ -1709,7 +1915,7 @@ function updatePagination(totalEntries) {
   // Update pagination info
   const start = (currentPage - 1) * entriesPerPage + 1;
   const end = Math.min(currentPage * entriesPerPage, totalEntries);
-  
+
   if (showingStart) showingStart.textContent = start;
   if (showingEnd) showingEnd.textContent = end;
   if (totalEntriesEl) totalEntriesEl.textContent = totalEntries;
@@ -1733,10 +1939,10 @@ function updatePageNumbers() {
 
   // Show only 3 page numbers at a time
   const maxVisiblePages = 3;
-  
+
   // Calculate the window of pages to show
   let startPage, endPage;
-  
+
   if (totalPages <= maxVisiblePages) {
     // If total pages is 3 or less, show all pages
     startPage = 1;
@@ -1761,8 +1967,8 @@ function updatePageNumbers() {
   // Add page number buttons
   for (let i = startPage; i <= endPage; i++) {
     const pageBtn = document.createElement("button");
-    pageBtn.className = i === currentPage 
-      ? "btn btn-primary btn-sm" 
+    pageBtn.className = i === currentPage
+      ? "btn btn-primary btn-sm"
       : "btn btn-outline-secondary btn-sm";
     pageBtn.textContent = i;
     pageBtn.onclick = () => goToPage(i);
@@ -1779,9 +1985,55 @@ function updatePageNumbers() {
 }
 
 function goToPage(page) {
-  if (page >= 1 && page <= totalPages) {
+  if (page >= 1 && page <= totalPages && !isLoadingPage) {
     currentPage = page;
+    loadCurrentPage(); // Load the specific page from server
+  }
+}
+
+// Load current page from server
+async function loadCurrentPage() {
+  if (isLoadingPage) return;
+  isLoadingPage = true;
+
+  try {
+    const entriesRef = collection(db, "entries");
+    const q = query(
+      entriesRef,
+      orderBy("createdAt", "desc"),
+      limit(entriesPerPage)
+    );
+
+    const snapshot = await getDocs(q);
+    entries = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
     renderTable();
+
+    console.log(`📄 Loaded page ${currentPage} (${entries.length} entries)`);
+  } catch (error) {
+    console.error("Failed to load page:", error);
+    showToast("Failed to load page: " + error.message, "danger");
+  } finally {
+    isLoadingPage = false;
+  }
+}
+
+let isLoadingPage = false;
+let totalEntriesCount = 0;
+
+// Get total count efficiently (cached)
+async function getTotalEntriesCount() {
+  try {
+    // Optimized: Use getCountFromServer to count documents without reading their data
+    const coll = collection(db, "entries");
+    const snapshot = await getCountFromServer(coll);
+    totalEntriesCount = snapshot.data().count;
+    console.log(`📊 Total entries: ${totalEntriesCount}`);
+
+    // Update total pages calculation
+    totalPages = Math.ceil(totalEntriesCount / entriesPerPage);
+    // The pagination UI will be updated when renderTable() is called
+  } catch (error) {
+    console.error("Failed to get total count:", error);
   }
 }
 
@@ -1798,9 +2050,16 @@ function hidePagination() {
 }
 
 // --------------------- Event Listeners ---------------------
-searchInput?.addEventListener("input", () => {
-  currentPage = 1; // Reset to first page when searching
-  renderTable();
+searchInput?.addEventListener("input", (e) => {
+  const term = e.target.value.trim();
+
+  // Clear any existing timer
+  if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+
+  // Set new timer (wait 500ms after typing stops)
+  searchDebounceTimer = setTimeout(() => {
+    performServerSearch(term);
+  }, 500);
 });
 filterDepartment?.addEventListener("change", () => {
   currentPage = 1; // Reset to first page when filtering

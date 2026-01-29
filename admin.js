@@ -13,7 +13,10 @@ import {
   doc,
   onSnapshot,
   setDoc,
-  addDoc
+  addDoc,
+  query,
+  orderBy,
+  limit
 } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
 
 // Firebase config
@@ -61,6 +64,28 @@ function safeStr(v) {
 function toNumberSafe(v, fallback = 0) {
   const n = Number(v);
   return Number.isFinite(n) ? n : fallback;
+}
+
+// Helper function to update admin entries with recent changes
+function updateAdminEntriesWithRecent(recentEntries) {
+  // Update existing entries or add new ones
+  recentEntries.forEach(recentEntry => {
+    const existingIndex = entries.findIndex(e => e.id === recentEntry.id);
+    if (existingIndex >= 0) {
+      entries[existingIndex] = recentEntry; // Update existing
+    } else {
+      entries.unshift(recentEntry); // Add new at beginning
+    }
+  });
+  
+  // Remove entries that might have been deleted (only check recent ones)
+  const recentIds = new Set(recentEntries.map(e => e.id));
+  const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000);
+  entries = entries.filter(entry => {
+    // Keep entries that are either in recent list or older than 1 day
+    const entryTime = entry.createdAt ? new Date(entry.createdAt).getTime() : 0;
+    return recentIds.has(entry.id) || entryTime < oneDayAgo;
+  });
 }
 
 function formatCurrency(n) {
@@ -204,9 +229,32 @@ let chartDateOffset = 0; // 0 = current week, -7 = previous week, etc.
 // Load all data
 function loadData() {
   const entriesRef = collection(db, "entries");
+  
+  // For admin, listen to recent entries only (last 100)
+  const recentEntriesQuery = query(
+    entriesRef, 
+    orderBy("createdAt", "desc"), 
+    limit(100)
+  );
 
-  onSnapshot(entriesRef, (snapshot) => {
-    entries = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+  onSnapshot(recentEntriesQuery, async (snapshot) => {
+    const recentEntries = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    
+    // If first load, get all entries once
+    if (entries.length === 0) {
+      try {
+        const allSnapshot = await getDocs(entriesRef);
+        entries = allSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        console.log(`Admin loaded ${entries.length} entries (one-time read)`);
+      } catch (error) {
+        console.error("Failed to load all entries:", error);
+        entries = recentEntries; // Fallback to recent entries
+      }
+    } else {
+      // Update with recent changes only
+      updateAdminEntriesWithRecent(recentEntries);
+    }
+    
     updateStats();
     renderUserTable();
     renderDeptTable();
