@@ -268,27 +268,36 @@
         <div class="receipt-card">
             <div class="brand-section">
                 <img src="assets/IMG_1143.png" alt="SML Logo" style="width: 120px; height: auto; margin-bottom: 0.5rem;">
-                <h1 class="page-title" style="color: #dc2626;">🔒 Service Temporarily Unavailable</h1>
-                <p class="text-muted">The receipt lookup service is currently offline for maintenance.</p>
+                <h1 class="page-title" style="color: #dc2626;">🔒 Receipt Lookup Closed</h1>
+                <p class="text-muted">Please register your waiver to participate in the event.</p>
             </div>
 
-            <!-- Shutdown Message -->
-            <div style="background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%); border-radius: 16px; padding: 2rem; text-align: center; border: 2px solid #fca5a5;">
-                <div style="font-size: 4rem; margin-bottom: 1rem;">🚧</div>
-                <h3 style="color: #991b1b; font-weight: 700; margin-bottom: 1rem;">System Maintenance</h3>
+            <!-- Shutdown Message with Waiver Registration -->
+            <div style="background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%); border-radius: 16px; padding: 2rem; text-align: center; border: 2px solid #fca5a5; margin-bottom: 1.5rem;">
+                <div style="font-size: 4rem; margin-bottom: 1rem;">📋</div>
+                <h3 style="color: #991b1b; font-weight: 700; margin-bottom: 1rem;">Registration Required</h3>
                 <p style="color: #7f1d1d; font-size: 1.1rem; margin-bottom: 1.5rem;">
-                    We're currently performing system maintenance to improve our services.
+                    Receipt lookup is now closed. Please complete your waiver registration to participate in the event.
                 </p>
-                <div style="background: white; border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem;">
+                
+                <!-- Waiver Registration Button -->
+                <a href="https://docs.google.com/forms/d/e/1FAIpQLSfd3pXC4SE7NNqNgkkmPIbMAtAOqTDj0NfCVsSYdX0J5YPBeg/viewform" 
+                   target="_blank"
+                   style="display: inline-block; background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%); color: white; text-decoration: none; padding: 1.25rem 2.5rem; border-radius: 12px; font-weight: 700; font-size: 1.1rem; box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3); transition: all 0.3s ease; margin-bottom: 1.5rem;">
+                    📝 Register Waiver Now
+                </a>
+                
+                <div style="background: white; border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem;">
                     <p style="color: #4b5563; margin-bottom: 0.5rem;">
-                        <strong>📅 Expected Availability:</strong> Please check back later
+                        <strong>⚠️ Important:</strong> All participants must complete the waiver form
                     </p>
                     <p style="color: #6b7280; font-size: 0.9rem; margin: 0;">
-                        For urgent inquiries, please contact the SML Organization directly.
+                        Click the button above to access the registration form.
                     </p>
                 </div>
+                
                 <p style="color: #991b1b; font-size: 0.9rem; margin: 0;">
-                    Thank you for your patience and understanding.
+                    For questions, please contact the SML Organization.
                 </p>
             </div>
 
@@ -310,17 +319,17 @@
                 </div>
 
                 <button type="submit" class="btn-search" id="searchBtn" disabled>
-                    <span id="btnText">Find My Receipt</span>
+                    <span id="btnText">Service Closed</span>
                     <span id="btnSpinner" class="spinner-border spinner-border-sm ms-2 d-none" role="status"
                         aria-hidden="true"></span>
                 </button>
             </form>
 
-            <div id="errorAlert" class="alert alert-danger alert-custom" role="alert" style="display: none;">
+            <div id="errorAlert" class="alert alert-danger alert-custom" role="alert">
                 ❌ No records found matching these details. Please check your spelling and try again.
             </div>
 
-            <div id="receiptResult" style="display: none;">
+            <div id="receiptResult">
                 <div class="receipt-header">
                     <h5 class="fw-bold mb-1" style="color: #4b5563;">Glow Run 2026</h5>
                     <small class="text-muted d-block mb-2">Electronic Official Receipt</small>
@@ -371,14 +380,14 @@
         
     </div>
 
-    <!-- Receipt lookup functionality disabled during maintenance -->
+    <!-- Receipt lookup functionality disabled -->
     <!-- <script src="receipt.js" type="module"></script> -->
     
     <script>
-        // Prevent form submission during maintenance
+        // Prevent form submission and redirect to waiver
         document.getElementById('receiptForm')?.addEventListener('submit', function(e) {
             e.preventDefault();
-            alert('⚠️ Receipt lookup service is currently unavailable. Please check back later.');
+            window.open('https://docs.google.com/forms/d/e/1FAIpQLSfd3pXC4SE7NNqNgkkmPIbMAtAOqTDj0NfCVsSYdX0J5YPBeg/viewform', '_blank');
         });
     </script>
 </body>
