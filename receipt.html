@@ -267,39 +267,60 @@
     <div class="main-container">
         <div class="receipt-card">
             <div class="brand-section">
-                <img src="assets/green.png" alt="SML Logo" class="org-logo" />
-                <h1 class="page-title">Receipt Lookup</h1>
-                <p class="text-muted small">Enter your details to view your transaction</p>
+                <img src="assets/IMG_1143.png" alt="SML Logo" style="width: 120px; height: auto; margin-bottom: 0.5rem;">
+                <h1 class="page-title" style="color: #dc2626;">🔒 Service Temporarily Unavailable</h1>
+                <p class="text-muted">The receipt lookup service is currently offline for maintenance.</p>
             </div>
 
-            <form id="receiptForm">
+            <!-- Shutdown Message -->
+            <div style="background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%); border-radius: 16px; padding: 2rem; text-align: center; border: 2px solid #fca5a5;">
+                <div style="font-size: 4rem; margin-bottom: 1rem;">🚧</div>
+                <h3 style="color: #991b1b; font-weight: 700; margin-bottom: 1rem;">System Maintenance</h3>
+                <p style="color: #7f1d1d; font-size: 1.1rem; margin-bottom: 1.5rem;">
+                    We're currently performing system maintenance to improve our services.
+                </p>
+                <div style="background: white; border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem;">
+                    <p style="color: #4b5563; margin-bottom: 0.5rem;">
+                        <strong>📅 Expected Availability:</strong> Please check back later
+                    </p>
+                    <p style="color: #6b7280; font-size: 0.9rem; margin: 0;">
+                        For urgent inquiries, please contact the SML Organization directly.
+                    </p>
+                </div>
+                <p style="color: #991b1b; font-size: 0.9rem; margin: 0;">
+                    Thank you for your patience and understanding.
+                </p>
+            </div>
+
+            <!-- Hidden form (disabled) -->
+            <form id="receiptForm" style="display: none;">
                 <div class="mb-3">
                     <label for="schoolId" class="form-label">ID Number</label>
-                    <input type="number" class="form-control" id="schoolId" placeholder="e.g. 1234567" required>
+                    <input type="number" class="form-control" id="schoolId" placeholder="e.g. 1234567" required disabled>
                 </div>
                 <div class="row g-2">
                     <div class="col-6 mb-3">
                         <label for="firstName" class="form-label">First Name</label>
-                        <input type="text" class="form-control" id="firstName" placeholder="Jasper Ace" required>
+                        <input type="text" class="form-control" id="firstName" placeholder="Jasper Ace" required disabled>
                     </div>
                     <div class="col-6 mb-3">
                         <label for="lastName" class="form-label">Last Name</label>
-                        <input type="text" class="form-control" id="lastName" placeholder="Lapitan" required>
+                        <input type="text" class="form-control" id="lastName" placeholder="Lapitan" required disabled>
                     </div>
                 </div>
 
-                <button type="submit" class="btn-search" id="searchBtn">
+                <button type="submit" class="btn-search" id="searchBtn" disabled>
                     <span id="btnText">Find My Receipt</span>
                     <span id="btnSpinner" class="spinner-border spinner-border-sm ms-2 d-none" role="status"
                         aria-hidden="true"></span>
                 </button>
             </form>
 
-            <div id="errorAlert" class="alert alert-danger alert-custom" role="alert">
+            <div id="errorAlert" class="alert alert-danger alert-custom" role="alert" style="display: none;">
                 ❌ No records found matching these details. Please check your spelling and try again.
             </div>
 
-            <div id="receiptResult">
+            <div id="receiptResult" style="display: none;">
                 <div class="receipt-header">
                     <h5 class="fw-bold mb-1" style="color: #4b5563;">Glow Run 2026</h5>
                     <small class="text-muted d-block mb-2">Electronic Official Receipt</small>
@@ -350,7 +371,16 @@
         
     </div>
 
-    <script src="receipt.js" type="module"></script>
+    <!-- Receipt lookup functionality disabled during maintenance -->
+    <!-- <script src="receipt.js" type="module"></script> -->
+    
+    <script>
+        // Prevent form submission during maintenance
+        document.getElementById('receiptForm')?.addEventListener('submit', function(e) {
+            e.preventDefault();
+            alert('⚠️ Receipt lookup service is currently unavailable. Please check back later.');
+        });
+    </script>
 </body>
 
 </html>
